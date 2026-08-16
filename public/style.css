@@ -1071,3 +1071,95 @@ html, body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ==========================================================================
+   PERMISSIONS BANNER & SHEET
+   ========================================================================== */
+.perm-banner {
+  background: linear-gradient(135deg, #132238, #0f1a2a);
+  border-bottom: 1px solid var(--border-active);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  animation: slideDown 0.2s ease-out;
+}
+
+.perm-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.perm-banner-icon {
+  font-size: 1.3rem;
+}
+
+.perm-banner-content strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.perm-banner-content p {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.perm-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.perm-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.perm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  gap: 10px;
+}
+
+.perm-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perm-info strong {
+  font-size: 0.88rem;
+}
+
+.perm-info span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.perm-item .pill-btn.granted {
+  background: rgba(48, 209, 88, 0.15);
+  color: var(--brand-green);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  pointer-events: none;
+}

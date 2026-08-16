@@ -1,4 +1,4 @@
-// AetherLAN — Mobile-First Matrix Client
+// AetherLAN — Mobile-First Matrix Client with Permissions
 (function() {
   'use strict';
 
@@ -21,7 +21,12 @@
     recordTimer: null,
     recordStart: 0,
     typingTimer: null,
-    isTyping: false
+    isTyping: false,
+    perms: {
+      mic: false,
+      cam: false,
+      notif: false
+    }
   };
 
   // DOM Elements
@@ -34,7 +39,11 @@
     searchDrawer: document.getElementById('searchDrawer'),
     searchInput: document.getElementById('searchInput'),
     closeSearchBtn: document.getElementById('closeSearchBtn'),
+    permBtn: document.getElementById('permBtn'),
     qrBtn: document.getElementById('qrBtn'),
+    permBanner: document.getElementById('permBanner'),
+    grantAllPermsBtn: document.getElementById('grantAllPermsBtn'),
+    dismissPermBannerBtn: document.getElementById('dismissPermBannerBtn'),
     tabBtns: document.querySelectorAll('.tab-btn'),
     views: document.querySelectorAll('.view'),
     chatBadge: document.getElementById('chatBadge'),
@@ -75,6 +84,13 @@
     closeDevicesBackdrop: document.getElementById('closeDevicesBackdrop'),
     devicesList: document.getElementById('devicesList'),
     exportChatBtn: document.getElementById('exportChatBtn'),
+    // Permissions Sheet
+    permSheet: document.getElementById('permSheet'),
+    closePermBackdrop: document.getElementById('closePermBackdrop'),
+    reqMicBtn: document.getElementById('reqMicBtn'),
+    reqCamBtn: document.getElementById('reqCamBtn'),
+    reqNotifBtn: document.getElementById('reqNotifBtn'),
+    grantAllSheetBtn: document.getElementById('grantAllSheetBtn'),
     // Lightbox
     lightboxOverlay: document.getElementById('lightboxOverlay'),
     closeLightboxBtn: document.getElementById('closeLightboxBtn'),
@@ -148,6 +164,126 @@
     });
   }
 
+  // --- Permissions Management ---
+  async function checkPermissions() {
+    if (window.Notification) {
+      state.perms.notif = Notification.permission === 'granted';
+      updatePermBtn(el.reqNotifBtn, state.perms.notif);
+    }
+
+    if (localStorage.getItem('aether_mic_granted') === 'true') {
+      state.perms.mic = true;
+      updatePermBtn(el.reqMicBtn, true);
+    }
+    if (localStorage.getItem('aether_cam_granted') === 'true') {
+      state.perms.cam = true;
+      updatePermBtn(el.reqCamBtn, true);
+    }
+
+    const dismissed = localStorage.getItem('aether_perm_banner_dismissed') === 'true';
+    if (!dismissed && (!state.perms.mic || !state.perms.cam || !state.perms.notif)) {
+      el.permBanner.style.display = 'flex';
+    }
+  }
+
+  function updatePermBtn(btn, isGranted) {
+    if (!btn) return;
+    if (isGranted) {
+      btn.textContent = '✓ Granted';
+      btn.classList.add('granted');
+    } else {
+      btn.textContent = 'Enable';
+      btn.classList.remove('granted');
+    }
+  }
+
+  async function requestMicrophone() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      state.perms.mic = true;
+      localStorage.setItem('aether_mic_granted', 'true');
+      updatePermBtn(el.reqMicBtn, true);
+      showToast('🎙️ Microphone enabled');
+      haptic();
+      return true;
+    } catch (e) {
+      showToast('Microphone access denied');
+      return false;
+    }
+  }
+
+  async function requestCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(t => t.stop());
+      state.perms.cam = true;
+      localStorage.setItem('aether_cam_granted', 'true');
+      updatePermBtn(el.reqCamBtn, true);
+      showToast('📸 Camera enabled');
+      haptic();
+      return true;
+    } catch (e) {
+      showToast('Camera access denied');
+      return false;
+    }
+  }
+
+  async function requestNotifications() {
+    if (!window.Notification) return false;
+    try {
+      const res = await Notification.requestPermission();
+      state.perms.notif = res === 'granted';
+      updatePermBtn(el.reqNotifBtn, state.perms.notif);
+      if (state.perms.notif) showToast('🔔 Notifications enabled');
+      haptic();
+      return state.perms.notif;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function grantAllPermissions() {
+    await requestMicrophone();
+    await requestCamera();
+    await requestNotifications();
+    el.permBanner.style.display = 'none';
+    localStorage.setItem('aether_perm_banner_dismissed', 'true');
+    showToast('✓ Permissions configured');
+  }
+
+  el.permBtn.addEventListener('click', () => {
+    checkPermissions();
+    el.permSheet.style.display = 'flex';
+    haptic();
+  });
+  el.closePermBackdrop.addEventListener('click', () => el.permSheet.style.display = 'none');
+
+  el.reqMicBtn.addEventListener('click', requestMicrophone);
+  el.reqCamBtn.addEventListener('click', requestCamera);
+  el.reqNotifBtn.addEventListener('click', requestNotifications);
+  el.grantAllSheetBtn.addEventListener('click', async () => {
+    await grantAllPermissions();
+    el.permSheet.style.display = 'none';
+  });
+
+  el.grantAllPermsBtn.addEventListener('click', grantAllPermissions);
+  el.dismissPermBannerBtn.addEventListener('click', () => {
+    el.permBanner.style.display = 'none';
+    localStorage.setItem('aether_perm_banner_dismissed', 'true');
+  });
+
+  function notifyUser(title, body) {
+    if (document.hidden && window.Notification && Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body,
+          icon: '/favicon.ico'
+        });
+      } catch (e) {}
+    }
+  }
+
   // --- WebSocket Connection ---
   let ws = null;
   function connect() {
@@ -211,6 +347,10 @@
           state.unreadCount++;
           el.chatBadge.textContent = state.unreadCount;
           el.chatBadge.style.display = 'inline-block';
+        }
+
+        if (data.message.senderId !== state.myId) {
+          notifyUser(`AetherLAN: ${data.message.senderName}`, data.message.text || 'Shared a file');
         }
         haptic();
         break;
@@ -353,7 +493,6 @@
   }
 
   function formatMessageText(text) {
-    // URL links
     return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color:inherit; text-decoration:underline;">$1</a>');
   }
 
@@ -451,7 +590,10 @@
 
   // --- File Upload & Camera ---
   el.attachBtn.addEventListener('click', () => el.fileAttachmentInput.click());
-  el.cameraBtn.addEventListener('click', () => el.cameraInput.click());
+  el.cameraBtn.addEventListener('click', async () => {
+    if (!state.perms.cam) await requestCamera();
+    el.cameraInput.click();
+  });
   el.selectFilesBtn.addEventListener('click', () => el.fileAttachmentInput.click());
 
   el.fileAttachmentInput.addEventListener('change', () => {
@@ -536,6 +678,8 @@
   el.voiceBtn.addEventListener('click', async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      state.perms.mic = true;
+      localStorage.setItem('aether_mic_granted', 'true');
       state.mediaRecorder = new MediaRecorder(stream);
       state.audioChunks = [];
 
@@ -561,6 +705,8 @@
       haptic();
     } catch (err) {
       showToast('Microphone access required');
+      checkPermissions();
+      el.permSheet.style.display = 'flex';
     }
   });
 
@@ -631,7 +777,7 @@
     el.clipUpdated.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} (${formatTime(clip.updatedAt)})` : 'Live sync across all devices';
   }
 
-  // --- Connected Devices & Network Sheet ---
+  // --- Connected Devices Sheet ---
   el.networkInfoBtn.addEventListener('click', () => {
     renderDevicesList();
     el.devicesSheet.style.display = 'flex';
@@ -758,9 +904,7 @@
           colorLight: "#ffffff",
           correctLevel: QRCode.CorrectLevel.M
         });
-      } catch (err) {
-        console.error('QR Render Error:', err);
-      }
+      } catch (err) {}
     }
   }
 
@@ -786,6 +930,7 @@
 
   // Init
   updateProfileDisplay();
+  checkPermissions();
   connect();
 
 })();

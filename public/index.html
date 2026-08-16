@@ -38,6 +38,11 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
         </button>
+        <button id="permBtn" class="circle-btn" title="Device Permissions" aria-label="Permissions">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </button>
         <button id="qrBtn" class="circle-btn" title="Share QR Code" aria-label="Share QR">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"></rect>
@@ -48,6 +53,21 @@
         </button>
       </div>
     </header>
+
+    <!-- First Launch Permissions Banner -->
+    <div class="perm-banner" id="permBanner" style="display:none;">
+      <div class="perm-banner-content">
+        <span class="perm-banner-icon">🛡️</span>
+        <div>
+          <strong>Enable Permissions</strong>
+          <p>Allow Mic, Camera & Notifications for instant voice notes and drop alerts.</p>
+        </div>
+      </div>
+      <div class="perm-banner-actions">
+        <button type="button" id="grantAllPermsBtn" class="pill-btn primary small">Grant All</button>
+        <button type="button" id="dismissPermBannerBtn" class="perm-dismiss-btn">&times;</button>
+      </div>
+    </div>
 
     <!-- Search Overlay Bar -->
     <div class="search-bar-drawer" id="searchDrawer" style="display:none;">
@@ -137,7 +157,7 @@
         </footer>
       </section>
 
-      <!-- 2. FILES VIEW (AirDrop Style Dropzone & Library) -->
+      <!-- 2. FILES VIEW -->
       <section id="filesView" class="view">
         <div class="files-container">
           <div class="upload-banner" id="uploadBanner">
@@ -174,7 +194,7 @@
         </div>
       </section>
 
-      <!-- 3. CLIPBOARD VIEW (Universal Live Clipboard) -->
+      <!-- 3. CLIPBOARD VIEW -->
       <section id="clipView" class="view">
         <div class="clip-container">
           <div class="clip-card">
@@ -204,6 +224,46 @@
       </section>
 
     </main>
+
+    <!-- Permissions Sheet Modal -->
+    <div class="bottom-sheet" id="permSheet" style="display:none;">
+      <div class="sheet-backdrop" id="closePermBackdrop"></div>
+      <div class="sheet-content">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">Device Permissions</h3>
+        <p class="sheet-sub">AetherLAN runs 100% locally. Permissions stay on your device:</p>
+        
+        <div class="perm-list">
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>🎙️ Microphone</strong>
+              <span>Record & stream voice notes in chat</span>
+            </div>
+            <button type="button" id="reqMicBtn" class="pill-btn secondary small">Enable</button>
+          </div>
+
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>📸 Camera</strong>
+              <span>Capture photos directly inside chat</span>
+            </div>
+            <button type="button" id="reqCamBtn" class="pill-btn secondary small">Enable</button>
+          </div>
+
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>🔔 Notifications</strong>
+              <span>Get alerted when files or messages arrive</span>
+            </div>
+            <button type="button" id="reqNotifBtn" class="pill-btn secondary small">Enable</button>
+          </div>
+        </div>
+
+        <div class="sheet-actions" style="margin-top: 16px;">
+          <button type="button" id="grantAllSheetBtn" class="pill-btn primary">Grant All Permissions</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Connected Devices Sheet -->
     <div class="bottom-sheet" id="devicesSheet" style="display:none;">
