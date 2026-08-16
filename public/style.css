@@ -39,12 +39,11 @@
 html, body {
   width: 100%;
   height: 100%;
-  height: 100dvh;
   background-color: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-sans);
   overflow: hidden;
-  position: fixed;
+  touch-action: manipulation;
 }
 
 .mobile-app {
@@ -79,6 +78,7 @@ html, body {
   background: transparent;
   border: none;
   cursor: pointer;
+  padding: 4px;
 }
 
 .avatar-circle {
@@ -100,6 +100,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   cursor: pointer;
+  user-select: none;
 }
 
 .app-title {
@@ -143,11 +144,16 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: 0.15s;
+  transition: transform 0.1s;
 }
 
 .circle-btn:active {
   transform: scale(0.92);
+}
+
+.circle-btn.call-trigger-btn {
+  color: var(--brand-green);
+  border-color: rgba(48, 209, 88, 0.3);
 }
 
 /* Search Bar Drawer */
@@ -184,6 +190,55 @@ html, body {
   cursor: pointer;
 }
 
+/* Permissions Banner */
+.perm-banner {
+  background: linear-gradient(135deg, #132238, #0f1a2a);
+  border-bottom: 1px solid var(--border-active);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.perm-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.perm-banner-icon {
+  font-size: 1.3rem;
+}
+
+.perm-banner-content strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.perm-banner-content p {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.perm-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.perm-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
 /* ==========================================================================
    SEGMENTED NAVIGATION TABS
    ========================================================================== */
@@ -204,7 +259,7 @@ html, body {
   font-family: var(--font-sans);
   font-size: 0.85rem;
   font-weight: 600;
-  padding: 7px 0;
+  padding: 8px 0;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -261,6 +316,7 @@ html, body {
 .chat-timeline {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
@@ -283,7 +339,7 @@ html, body {
 .msg-row {
   display: flex;
   flex-direction: column;
-  max-width: 84%;
+  max-width: 85%;
   animation: popIn 0.15s ease-out;
 }
 
@@ -469,6 +525,7 @@ html, body {
   gap: 6px;
   position: relative;
   flex-shrink: 0;
+  z-index: 10;
 }
 
 .hidden-input {
@@ -487,7 +544,7 @@ html, body {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: 0.15s;
+  transition: transform 0.1s;
 }
 
 .dock-btn:active {
@@ -586,6 +643,7 @@ html, body {
 .files-container {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
 }
 
@@ -630,10 +688,11 @@ html, body {
   border-radius: var(--radius-full);
   border: none;
   cursor: pointer;
-  transition: 0.15s;
+  transition: transform 0.1s;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 }
 
@@ -1041,131 +1100,7 @@ html, body {
 }
 
 /* ==========================================================================
-   TOAST
-   ========================================================================== */
-.toast-wrapper {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.toast {
-  background: var(--bg-card);
-  border: 1px solid var(--border-active);
-  color: var(--text-primary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 8px 18px;
-  border-radius: var(--radius-full);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  animation: toastIn 0.2s ease-out;
-}
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ==========================================================================
-   PERMISSIONS BANNER & SHEET
-   ========================================================================== */
-.perm-banner {
-  background: linear-gradient(135deg, #132238, #0f1a2a);
-  border-bottom: 1px solid var(--border-active);
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  animation: slideDown 0.2s ease-out;
-}
-
-.perm-banner-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8rem;
-}
-
-.perm-banner-icon {
-  font-size: 1.3rem;
-}
-
-.perm-banner-content strong {
-  display: block;
-  color: var(--text-primary);
-}
-
-.perm-banner-content p {
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  line-height: 1.3;
-}
-
-.perm-banner-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.perm-dismiss-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.3rem;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-.perm-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.perm-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-app);
-  border: 1px solid var(--border-subtle);
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  gap: 10px;
-}
-
-.perm-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.perm-info strong {
-  font-size: 0.88rem;
-}
-
-.perm-info span {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.perm-item .pill-btn.granted {
-  background: rgba(48, 209, 88, 0.15);
-  color: var(--brand-green);
-  border: 1px solid rgba(48, 209, 88, 0.3);
-  pointer-events: none;
-}
-
-/* ==========================================================================
-   WELCOME & ONBOARDING MODAL
+   WELCOME MODAL
    ========================================================================== */
 .welcome-modal-overlay {
   position: fixed;
@@ -1177,7 +1112,6 @@ html, body {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  animation: fadeIn 0.2s ease-out;
 }
 
 .welcome-card {
@@ -1242,13 +1176,8 @@ html, body {
 }
 
 /* ==========================================================================
-   WEBRTC CALLS, VIDEO & SCREENSHARE
+   CALL OVERLAY & CONTROLS
    ========================================================================== */
-.call-trigger-btn {
-  color: var(--brand-green);
-  border-color: rgba(48, 209, 88, 0.3);
-}
-
 .call-overlay {
   position: fixed;
   inset: 0;
@@ -1257,7 +1186,6 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  animation: fadeIn 0.2s ease-out;
 }
 
 .call-media-container {
@@ -1381,7 +1309,7 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: 0.15s;
+  transition: transform 0.15s;
   backdrop-filter: blur(8px);
 }
 
@@ -1427,7 +1355,6 @@ html, body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 20px rgba(10, 132, 255, 0.5);
-  animation: beacon-pulse 1.2s infinite;
 }
 
 .incoming-caller-name {
@@ -1459,7 +1386,7 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: 0.15s;
+  transition: transform 0.15s;
 }
 
 .call-action-circle:active {
@@ -1495,7 +1422,7 @@ html, body {
   text-align: center;
   gap: 8px;
   cursor: pointer;
-  transition: 0.15s;
+  transition: transform 0.15s;
   color: var(--text-primary);
 }
 
@@ -1524,4 +1451,30 @@ html, body {
 .call-type-card span {
   font-size: 0.68rem;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   TOAST
+   ========================================================================== */
+.toast-wrapper {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--border-active);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }

@@ -1,4 +1,4 @@
-// AetherLAN — Mobile-First Matrix Client + WebRTC Call Engine
+// AetherLAN — Zero-Lag Mobile Matrix Client & WebRTC Engine
 (function() {
   'use strict';
 
@@ -12,12 +12,19 @@
     return devId;
   }
 
+  const RANDOM_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo', 'Phoenix', 'Kai', 'Sky', 'Nova'];
+  const COLOR_LIST = ['#0a84ff', '#30d158', '#ff375f', '#ffd60a', '#bf5af2', '#64d2ff', '#ff9f0a'];
+
+  function getRandomName() {
+    return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)] + '_' + Math.floor(10 + Math.random() * 90);
+  }
+
   // State
   const state = {
     deviceId: getOrCreateDeviceId(),
     myId: null,
-    name: localStorage.getItem('aether_user_name') || '',
-    color: localStorage.getItem('aether_user_color') || '#0a84ff',
+    name: localStorage.getItem('aether_user_name') || getRandomName(),
+    color: localStorage.getItem('aether_user_color') || COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)],
     isProfileSet: localStorage.getItem('aether_profile_set') === 'true',
     activeTab: 'chatView',
     unreadCount: 0,
@@ -34,14 +41,13 @@
     recordStart: 0,
     typingTimer: null,
     isTyping: false,
-    perms: { mic: false, cam: false, notif: false },
     // WebRTC Call State
     call: {
       active: false,
       peerId: null,
       peerName: 'Peer',
       peerColor: '#0a84ff',
-      mode: 'audio', // 'audio' | 'video' | 'screen'
+      mode: 'audio',
       localStream: null,
       remoteStream: null,
       pc: null,
@@ -50,7 +56,7 @@
       micMuted: false,
       camOff: false,
       isScreenSharing: false,
-      facingMode: 'user' // 'user' or 'environment'
+      facingMode: 'user'
     }
   };
 
@@ -64,11 +70,7 @@
     searchDrawer: document.getElementById('searchDrawer'),
     searchInput: document.getElementById('searchInput'),
     closeSearchBtn: document.getElementById('closeSearchBtn'),
-    permBtn: document.getElementById('permBtn'),
     qrBtn: document.getElementById('qrBtn'),
-    permBanner: document.getElementById('permBanner'),
-    grantAllPermsBtn: document.getElementById('grantAllPermsBtn'),
-    dismissPermBannerBtn: document.getElementById('dismissPermBannerBtn'),
     tabBtns: document.querySelectorAll('.tab-btn'),
     views: document.querySelectorAll('.view'),
     chatBadge: document.getElementById('chatBadge'),
@@ -104,13 +106,6 @@
     clearClipBtn: document.getElementById('clearClipBtn'),
     syncClipBtn: document.getElementById('syncClipBtn'),
     clipCharCount: document.getElementById('clipCharCount'),
-    // Welcome Modal
-    welcomeModal: document.getElementById('welcomeModal'),
-    welcomeForm: document.getElementById('welcomeForm'),
-    welcomeNameInput: document.getElementById('welcomeNameInput'),
-    welcomeAvatarCircle: document.getElementById('welcomeAvatarCircle'),
-    welcomeColorRow: document.getElementById('welcomeColorRow'),
-    welcomeRandomBtn: document.getElementById('welcomeRandomBtn'),
     // Calls & Media
     startCallBtn: document.getElementById('startCallBtn'),
     startCallSheet: document.getElementById('startCallSheet'),
@@ -140,13 +135,6 @@
     closeDevicesBackdrop: document.getElementById('closeDevicesBackdrop'),
     devicesList: document.getElementById('devicesList'),
     exportChatBtn: document.getElementById('exportChatBtn'),
-    // Permissions Sheet
-    permSheet: document.getElementById('permSheet'),
-    closePermBackdrop: document.getElementById('closePermBackdrop'),
-    reqMicBtn: document.getElementById('reqMicBtn'),
-    reqCamBtn: document.getElementById('reqCamBtn'),
-    reqNotifBtn: document.getElementById('reqNotifBtn'),
-    grantAllSheetBtn: document.getElementById('grantAllSheetBtn'),
     // Lightbox
     lightboxOverlay: document.getElementById('lightboxOverlay'),
     closeLightboxBtn: document.getElementById('closeLightboxBtn'),
@@ -167,15 +155,10 @@
     toastWrapper: document.getElementById('toastWrapper')
   };
 
-  const RANDOM_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo', 'Phoenix', 'Kai', 'Sky', 'Nova'];
-  const COLOR_LIST = ['#0a84ff', '#30d158', '#ff375f', '#ffd60a', '#bf5af2', '#64d2ff', '#ff9f0a'];
-
-  function getRandomName() {
-    return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)] + '_' + Math.floor(10 + Math.random() * 90);
-  }
-
   function haptic() {
-    if (navigator.vibrate) navigator.vibrate(10);
+    try {
+      if (navigator.vibrate) navigator.vibrate(10);
+    } catch(e){}
   }
 
   function formatBytes(bytes) {
@@ -191,14 +174,16 @@
   }
 
   function showToast(msg) {
+    if (!el.toastWrapper) return;
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = msg;
     el.toastWrapper.appendChild(t);
-    setTimeout(() => t.remove(), 2200);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 2200);
   }
 
   function updateProfileDisplay() {
+    if (!el.userAvatar) return;
     const initial = (state.name || '?').charAt(0).toUpperCase();
     el.userAvatar.textContent = initial;
     el.userAvatar.style.backgroundColor = state.color;
@@ -211,227 +196,49 @@
 
     if (tabId === 'chatView') {
       state.unreadCount = 0;
-      el.chatBadge.style.display = 'none';
+      if (el.chatBadge) el.chatBadge.style.display = 'none';
       scrollToBottom();
     }
   }
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
-      el.chatTimeline.scrollTop = el.chatTimeline.scrollHeight;
+      if (el.chatTimeline) {
+        el.chatTimeline.scrollTop = el.chatTimeline.scrollHeight;
+      }
     });
-  }
-
-  // --- Onboarding Logic ---
-  let welcomeSelectedColor = state.color || '#0a84ff';
-
-  function initOnboarding() {
-    if (!state.isProfileSet || !state.name) {
-      const defaultName = getRandomName();
-      el.welcomeNameInput.value = defaultName;
-      updateWelcomeAvatar(defaultName, welcomeSelectedColor);
-      el.welcomeModal.style.display = 'flex';
-    } else {
-      updateProfileDisplay();
-      connect();
-    }
-  }
-
-  function updateWelcomeAvatar(name, col) {
-    const initial = (name || '?').charAt(0).toUpperCase();
-    el.welcomeAvatarCircle.textContent = initial;
-    el.welcomeAvatarCircle.style.backgroundColor = col;
-  }
-
-  el.welcomeNameInput.addEventListener('input', () => {
-    updateWelcomeAvatar(el.welcomeNameInput.value, welcomeSelectedColor);
-  });
-
-  el.welcomeColorRow.addEventListener('click', (e) => {
-    if (e.target.dataset.color) {
-      welcomeSelectedColor = e.target.dataset.color;
-      el.welcomeColorRow.querySelectorAll('.color-ball').forEach(b => {
-        b.classList.toggle('active', b.dataset.color === welcomeSelectedColor);
-      });
-      updateWelcomeAvatar(el.welcomeNameInput.value, welcomeSelectedColor);
-    }
-  });
-
-  el.welcomeRandomBtn.addEventListener('click', () => {
-    const name = getRandomName();
-    welcomeSelectedColor = COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
-    el.welcomeNameInput.value = name;
-    el.welcomeColorRow.querySelectorAll('.color-ball').forEach(b => {
-      b.classList.toggle('active', b.dataset.color === welcomeSelectedColor);
-    });
-    updateWelcomeAvatar(name, welcomeSelectedColor);
-    haptic();
-  });
-
-  el.welcomeForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const chosenName = el.welcomeNameInput.value.trim();
-    if (!chosenName) return;
-
-    state.name = chosenName;
-    state.color = welcomeSelectedColor;
-    state.isProfileSet = true;
-
-    localStorage.setItem('aether_user_name', state.name);
-    localStorage.setItem('aether_user_color', state.color);
-    localStorage.setItem('aether_profile_set', 'true');
-
-    el.welcomeModal.style.display = 'none';
-    updateProfileDisplay();
-    connect();
-    showToast(`👋 Welcome, ${state.name}!`);
-    haptic();
-  });
-
-  // --- Permissions Management ---
-  async function checkPermissions() {
-    if (window.Notification) {
-      state.perms.notif = Notification.permission === 'granted';
-      updatePermBtn(el.reqNotifBtn, state.perms.notif);
-    }
-
-    if (localStorage.getItem('aether_mic_granted') === 'true') {
-      state.perms.mic = true;
-      updatePermBtn(el.reqMicBtn, true);
-    }
-    if (localStorage.getItem('aether_cam_granted') === 'true') {
-      state.perms.cam = true;
-      updatePermBtn(el.reqCamBtn, true);
-    }
-
-    const dismissed = localStorage.getItem('aether_perm_banner_dismissed') === 'true';
-    if (!dismissed && state.isProfileSet && (!state.perms.mic || !state.perms.cam || !state.perms.notif)) {
-      el.permBanner.style.display = 'flex';
-    }
-  }
-
-  function updatePermBtn(btn, isGranted) {
-    if (!btn) return;
-    if (isGranted) {
-      btn.textContent = '✓ Granted';
-      btn.classList.add('granted');
-    } else {
-      btn.textContent = 'Enable';
-      btn.classList.remove('granted');
-    }
-  }
-
-  async function requestMicrophone() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
-      state.perms.mic = true;
-      localStorage.setItem('aether_mic_granted', 'true');
-      updatePermBtn(el.reqMicBtn, true);
-      showToast('🎙️ Microphone enabled');
-      haptic();
-      return true;
-    } catch (e) {
-      showToast('Microphone access denied');
-      return false;
-    }
-  }
-
-  async function requestCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
-      state.perms.cam = true;
-      localStorage.setItem('aether_cam_granted', 'true');
-      updatePermBtn(el.reqCamBtn, true);
-      showToast('📸 Camera enabled');
-      haptic();
-      return true;
-    } catch (e) {
-      showToast('Camera access denied');
-      return false;
-    }
-  }
-
-  async function requestNotifications() {
-    if (!window.Notification) return false;
-    try {
-      const res = await Notification.requestPermission();
-      state.perms.notif = res === 'granted';
-      updatePermBtn(el.reqNotifBtn, state.perms.notif);
-      if (state.perms.notif) showToast('🔔 Notifications enabled');
-      haptic();
-      return state.perms.notif;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  async function grantAllPermissions() {
-    await requestMicrophone();
-    await requestCamera();
-    await requestNotifications();
-    el.permBanner.style.display = 'none';
-    localStorage.setItem('aether_perm_banner_dismissed', 'true');
-    showToast('✓ Permissions configured');
-  }
-
-  el.permBtn.addEventListener('click', () => {
-    checkPermissions();
-    el.permSheet.style.display = 'flex';
-    haptic();
-  });
-  el.closePermBackdrop.addEventListener('click', () => el.permSheet.style.display = 'none');
-
-  el.reqMicBtn.addEventListener('click', requestMicrophone);
-  el.reqCamBtn.addEventListener('click', requestCamera);
-  el.reqNotifBtn.addEventListener('click', requestNotifications);
-  el.grantAllSheetBtn.addEventListener('click', async () => {
-    await grantAllPermissions();
-    el.permSheet.style.display = 'none';
-  });
-
-  el.grantAllPermsBtn.addEventListener('click', grantAllPermissions);
-  el.dismissPermBannerBtn.addEventListener('click', () => {
-    el.permBanner.style.display = 'none';
-    localStorage.setItem('aether_perm_banner_dismissed', 'true');
-  });
-
-  function notifyUser(title, body) {
-    if (document.hidden && window.Notification && Notification.permission === 'granted') {
-      try {
-        new Notification(title, { body, icon: '/favicon.ico' });
-      } catch (e) {}
-    }
   }
 
   // --- WebSocket Connection ---
   let ws = null;
   function connect() {
-    if (!state.name) return;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${protocol}//${window.location.host}`);
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}`);
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({
-        type: 'set_profile',
-        deviceId: state.deviceId,
-        name: state.name,
-        color: state.color,
-        device: 'Mobile'
-      }));
-    };
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: 'set_profile',
+          deviceId: state.deviceId,
+          name: state.name,
+          color: state.color,
+          device: 'Mobile'
+        }));
+      };
 
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        handleMessage(data);
-      } catch (err) {}
-    };
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          handleMessage(data);
+        } catch (err) {}
+      };
 
-    ws.onclose = () => {
-      setTimeout(connect, 2000);
-    };
+      ws.onclose = () => {
+        setTimeout(connect, 2000);
+      };
+    } catch(err) {
+      setTimeout(connect, 3000);
+    }
   }
 
   function handleMessage(data) {
@@ -455,7 +262,7 @@
       case 'peer_joined':
       case 'peer_left':
       case 'peer_updated': {
-        state.peers = data.peers;
+        state.peers = data.peers || [];
         updatePeersCount();
         renderDevicesList();
         break;
@@ -468,29 +275,29 @@
         }
         if (state.activeTab !== 'chatView') {
           state.unreadCount++;
-          el.chatBadge.textContent = state.unreadCount;
-          el.chatBadge.style.display = 'inline-block';
-        }
-
-        if (data.message.senderId !== state.myId && data.message.senderName !== state.name) {
-          notifyUser(`AetherLAN: ${data.message.senderName}`, data.message.text || 'Shared a file');
+          if (el.chatBadge) {
+            el.chatBadge.textContent = state.unreadCount;
+            el.chatBadge.style.display = 'inline-block';
+          }
         }
         haptic();
         break;
       }
 
       case 'typing': {
-        if (data.isTyping) {
-          el.typingName.textContent = data.name;
-          el.typingStatus.style.display = 'block';
-        } else {
-          el.typingStatus.style.display = 'none';
+        if (el.typingStatus && el.typingName) {
+          if (data.isTyping) {
+            el.typingName.textContent = data.name;
+            el.typingStatus.style.display = 'block';
+          } else {
+            el.typingStatus.style.display = 'none';
+          }
         }
         break;
       }
 
       case 'file_list': {
-        state.files = data.files;
+        state.files = data.files || [];
         renderFiles();
         break;
       }
@@ -501,7 +308,6 @@
         break;
       }
 
-      // WebRTC Call Signaling Messages
       case 'incoming_call': {
         if (!state.call.active) {
           showIncomingCallModal(data);
@@ -515,7 +321,7 @@
       }
 
       case 'call_declined': {
-        showToast(`${data.peerName || 'Peer'} declined the call`);
+        showToast(`${data.peerName || 'Peer'} declined call`);
         endCall(false);
         break;
       }
@@ -536,7 +342,7 @@
       }
 
       case 'call_ended': {
-        showToast('Call ended by peer');
+        showToast('Call ended');
         endCall(false);
         break;
       }
@@ -544,8 +350,9 @@
   }
 
   function updatePeersCount() {
+    if (!el.onlineCountText) return;
     const count = state.peers.length;
-    el.onlineCountText.textContent = count === 1 ? '1 Device Online' : `${count} Devices Online`;
+    el.onlineCountText.textContent = count <= 1 ? '1 Device Online' : `${count} Devices Online`;
   }
 
   // --- Search & Filter ---
@@ -558,31 +365,39 @@
     return false;
   }
 
-  el.searchToggleBtn.addEventListener('click', () => {
-    const isVisible = el.searchDrawer.style.display === 'flex';
-    el.searchDrawer.style.display = isVisible ? 'none' : 'flex';
-    if (!isVisible) el.searchInput.focus();
-    else {
+  if (el.searchToggleBtn) {
+    el.searchToggleBtn.addEventListener('click', () => {
+      const isVisible = el.searchDrawer.style.display === 'flex';
+      el.searchDrawer.style.display = isVisible ? 'none' : 'flex';
+      if (!isVisible) el.searchInput.focus();
+      else {
+        state.searchQuery = '';
+        el.searchInput.value = '';
+        renderAllMessages();
+      }
+      haptic();
+    });
+  }
+
+  if (el.closeSearchBtn) {
+    el.closeSearchBtn.addEventListener('click', () => {
+      el.searchDrawer.style.display = 'none';
       state.searchQuery = '';
       el.searchInput.value = '';
       renderAllMessages();
-    }
-  });
+    });
+  }
 
-  el.closeSearchBtn.addEventListener('click', () => {
-    el.searchDrawer.style.display = 'none';
-    state.searchQuery = '';
-    el.searchInput.value = '';
-    renderAllMessages();
-  });
-
-  el.searchInput.addEventListener('input', () => {
-    state.searchQuery = el.searchInput.value.trim();
-    renderAllMessages();
-  });
+  if (el.searchInput) {
+    el.searchInput.addEventListener('input', () => {
+      state.searchQuery = el.searchInput.value.trim();
+      renderAllMessages();
+    });
+  }
 
   // --- Chat Stream ---
   function renderAllMessages() {
+    if (!el.chatTimeline) return;
     el.chatTimeline.innerHTML = `<div class="date-chip"><span>DIRECT WI-FI • ZERO CLOUD</span></div>`;
     const filtered = state.messages.filter(matchesSearch);
     filtered.forEach(m => appendMessage(m, false));
@@ -590,6 +405,7 @@
   }
 
   function appendMessage(msg, shouldScroll = true) {
+    if (!el.chatTimeline) return;
     const isSelf = msg.senderId === state.myId || msg.senderName === state.name;
     const row = document.createElement('div');
     row.className = `msg-row ${isSelf ? 'self' : 'peer'}`;
@@ -659,23 +475,33 @@
     return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color:inherit; text-decoration:underline;">$1</a>');
   }
 
-  // --- Lightbox & Image Viewer ---
+  // --- Lightbox ---
   document.addEventListener('click', (e) => {
     if (e.target.closest('.chat-img-preview')) {
       const img = e.target.closest('.chat-img-preview');
-      el.lightboxImg.src = img.dataset.full;
-      el.lightboxDownloadBtn.href = img.dataset.full + '?download=1';
-      el.lightboxDownloadBtn.setAttribute('download', img.dataset.name);
-      el.lightboxOverlay.style.display = 'flex';
-      haptic();
+      if (el.lightboxImg && el.lightboxOverlay) {
+        el.lightboxImg.src = img.dataset.full;
+        if (el.lightboxDownloadBtn) {
+          el.lightboxDownloadBtn.href = img.dataset.full + '?download=1';
+          el.lightboxDownloadBtn.setAttribute('download', img.dataset.name);
+        }
+        el.lightboxOverlay.style.display = 'flex';
+        haptic();
+      }
       return;
     }
   });
 
-  el.closeLightboxBtn.addEventListener('click', () => el.lightboxOverlay.style.display = 'none');
-  el.lightboxOverlay.addEventListener('click', (e) => {
-    if (e.target === el.lightboxOverlay) el.lightboxOverlay.style.display = 'none';
-  });
+  if (el.closeLightboxBtn) {
+    el.closeLightboxBtn.addEventListener('click', () => {
+      if (el.lightboxOverlay) el.lightboxOverlay.style.display = 'none';
+    });
+  }
+  if (el.lightboxOverlay) {
+    el.lightboxOverlay.addEventListener('click', (e) => {
+      if (e.target === el.lightboxOverlay) el.lightboxOverlay.style.display = 'none';
+    });
+  }
 
   // --- Voice Player ---
   let activeAudio = null;
@@ -704,36 +530,40 @@
   });
 
   // --- Mobile Input & Send ---
-  el.msgInput.addEventListener('input', () => {
-    el.msgInput.style.height = 'auto';
-    el.msgInput.style.height = Math.min(el.msgInput.scrollHeight, 110) + 'px';
+  if (el.msgInput) {
+    el.msgInput.addEventListener('input', () => {
+      el.msgInput.style.height = 'auto';
+      el.msgInput.style.height = Math.min(el.msgInput.scrollHeight, 110) + 'px';
 
-    const hasText = el.msgInput.value.trim().length > 0;
-    el.sendBtn.style.display = hasText ? 'flex' : 'none';
-    el.voiceBtn.style.display = hasText ? 'none' : 'flex';
+      const hasText = el.msgInput.value.trim().length > 0;
+      if (el.sendBtn) el.sendBtn.style.display = hasText ? 'flex' : 'none';
+      if (el.voiceBtn) el.voiceBtn.style.display = hasText ? 'none' : 'flex';
 
-    if (!state.isTyping && ws && ws.readyState === WebSocket.OPEN) {
-      state.isTyping = true;
-      ws.send(JSON.stringify({ type: 'typing', isTyping: true }));
-    }
-    clearTimeout(state.typingTimer);
-    state.typingTimer = setTimeout(() => {
-      state.isTyping = false;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
+      if (!state.isTyping && ws && ws.readyState === WebSocket.OPEN) {
+        state.isTyping = true;
+        ws.send(JSON.stringify({ type: 'typing', isTyping: true }));
       }
-    }, 1500);
-  });
+      clearTimeout(state.typingTimer);
+      state.typingTimer = setTimeout(() => {
+        state.isTyping = false;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
+        }
+      }, 1500);
+    });
 
-  el.sendBtn.addEventListener('click', sendMessage);
-  el.msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
+    el.msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  }
+
+  if (el.sendBtn) el.sendBtn.addEventListener('click', sendMessage);
 
   function sendMessage() {
+    if (!el.msgInput) return;
     const text = el.msgInput.value.trim();
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
@@ -744,40 +574,49 @@
 
     el.msgInput.value = '';
     el.msgInput.style.height = 'auto';
-    el.sendBtn.style.display = 'none';
-    el.voiceBtn.style.display = 'flex';
+    if (el.sendBtn) el.sendBtn.style.display = 'none';
+    if (el.voiceBtn) el.voiceBtn.style.display = 'flex';
     state.isTyping = false;
     ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
     haptic();
   }
 
   // --- File Upload & Camera ---
-  el.attachBtn.addEventListener('click', () => el.fileAttachmentInput.click());
-  el.cameraBtn.addEventListener('click', async () => {
-    if (!state.perms.cam) await requestCamera();
-    el.cameraInput.click();
-  });
-  el.selectFilesBtn.addEventListener('click', () => el.fileAttachmentInput.click());
+  if (el.attachBtn && el.fileAttachmentInput) {
+    el.attachBtn.addEventListener('click', () => el.fileAttachmentInput.click());
+  }
+  if (el.cameraBtn && el.cameraInput) {
+    el.cameraBtn.addEventListener('click', () => el.cameraInput.click());
+  }
+  if (el.selectFilesBtn && el.fileAttachmentInput) {
+    el.selectFilesBtn.addEventListener('click', () => el.fileAttachmentInput.click());
+  }
 
-  el.fileAttachmentInput.addEventListener('change', () => {
-    if (el.fileAttachmentInput.files.length > 0) {
-      Array.from(el.fileAttachmentInput.files).forEach(f => upload(f));
-      el.fileAttachmentInput.value = '';
-    }
-  });
+  if (el.fileAttachmentInput) {
+    el.fileAttachmentInput.addEventListener('change', () => {
+      if (el.fileAttachmentInput.files.length > 0) {
+        Array.from(el.fileAttachmentInput.files).forEach(f => upload(f));
+        el.fileAttachmentInput.value = '';
+      }
+    });
+  }
 
-  el.cameraInput.addEventListener('change', () => {
-    if (el.cameraInput.files.length > 0) {
-      upload(el.cameraInput.files[0]);
-      el.cameraInput.value = '';
-    }
-  });
+  if (el.cameraInput) {
+    el.cameraInput.addEventListener('change', () => {
+      if (el.cameraInput.files.length > 0) {
+        upload(el.cameraInput.files[0]);
+        el.cameraInput.value = '';
+      }
+    });
+  }
 
   function upload(file, isVoice = false) {
-    el.uploadProgressBox.style.display = 'block';
-    el.uploadFileName.textContent = file.name || 'Voice memo';
-    el.uploadPercentage.textContent = '0%';
-    el.progressBar.style.width = '0%';
+    if (el.uploadProgressBox) {
+      el.uploadProgressBox.style.display = 'block';
+      if (el.uploadFileName) el.uploadFileName.textContent = file.name || 'Voice memo';
+      if (el.uploadPercentage) el.uploadPercentage.textContent = '0%';
+      if (el.progressBar) el.progressBar.style.width = '0%';
+    }
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload', true);
@@ -790,7 +629,7 @@
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
+      if (e.lengthComputable && el.uploadPercentage && el.progressBar) {
         const pct = Math.round((e.loaded / e.total) * 100);
         el.uploadPercentage.textContent = `${pct}%`;
         el.progressBar.style.width = `${pct}%`;
@@ -798,7 +637,7 @@
     };
 
     xhr.onload = () => {
-      setTimeout(() => { el.uploadProgressBox.style.display = 'none'; }, 400);
+      setTimeout(() => { if (el.uploadProgressBox) el.uploadProgressBox.style.display = 'none'; }, 400);
       if (xhr.status >= 200 && xhr.status < 300) {
         showToast('✓ Shared on Wi-Fi');
         haptic();
@@ -808,7 +647,7 @@
     };
 
     xhr.onerror = () => {
-      el.uploadProgressBox.style.display = 'none';
+      if (el.uploadProgressBox) el.uploadProgressBox.style.display = 'none';
       showToast('Network error');
     };
 
@@ -816,8 +655,9 @@
   }
 
   function renderFiles() {
-    el.filesBadge.textContent = state.files.length;
-    el.filesCount.textContent = `${state.files.length} files`;
+    if (!el.fileList) return;
+    if (el.filesBadge) el.filesBadge.textContent = state.files.length;
+    if (el.filesCount) el.filesCount.textContent = `${state.files.length} files`;
 
     if (state.files.length === 0) {
       el.fileList.innerHTML = '<div class="empty-state">No files shared yet. Tap Choose Files to share.</div>';
@@ -838,106 +678,122 @@
   }
 
   // --- Voice Recording ---
-  el.voiceBtn.addEventListener('click', async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      state.perms.mic = true;
-      localStorage.setItem('aether_mic_granted', 'true');
-      state.mediaRecorder = new MediaRecorder(stream);
-      state.audioChunks = [];
-
-      state.mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) state.audioChunks.push(e.data);
-      };
-
-      state.mediaRecorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
-      };
-
-      state.mediaRecorder.start();
-      state.recordStart = Date.now();
-      el.voiceOverlay.style.display = 'flex';
-
-      state.recordTimer = setInterval(() => {
-        const sec = Math.floor((Date.now() - state.recordStart) / 1000);
-        const m = Math.floor(sec / 60);
-        const s = String(sec % 60).padStart(2, '0');
-        el.recTimer.textContent = `${m}:${s}`;
-      }, 1000);
-
-      haptic();
-    } catch (err) {
-      showToast('Microphone access required');
-      checkPermissions();
-      el.permSheet.style.display = 'flex';
-    }
-  });
-
-  el.cancelRecBtn.addEventListener('click', () => {
-    if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
-      state.mediaRecorder.stop();
-    }
-    clearInterval(state.recordTimer);
-    el.voiceOverlay.style.display = 'none';
-    state.audioChunks = [];
-  });
-
-  el.sendRecBtn.addEventListener('click', () => {
-    if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
-      state.mediaRecorder.onstop = () => {
-        const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
-        const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-        upload(file, true);
+  if (el.voiceBtn) {
+    el.voiceBtn.addEventListener('click', async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('Microphone not supported on this connection');
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.mediaRecorder = new MediaRecorder(stream);
         state.audioChunks = [];
-      };
-      state.mediaRecorder.stop();
-    }
-    clearInterval(state.recordTimer);
-    el.voiceOverlay.style.display = 'none';
-  });
+
+        state.mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) state.audioChunks.push(e.data);
+        };
+
+        state.mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+        };
+
+        state.mediaRecorder.start();
+        state.recordStart = Date.now();
+        if (el.voiceOverlay) el.voiceOverlay.style.display = 'flex';
+
+        state.recordTimer = setInterval(() => {
+          const sec = Math.floor((Date.now() - state.recordStart) / 1000);
+          const m = Math.floor(sec / 60);
+          const s = String(sec % 60).padStart(2, '0');
+          if (el.recTimer) el.recTimer.textContent = `${m}:${s}`;
+        }, 1000);
+
+        haptic();
+      } catch (err) {
+        showToast('Microphone access denied');
+      }
+    });
+  }
+
+  if (el.cancelRecBtn) {
+    el.cancelRecBtn.addEventListener('click', () => {
+      if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+        state.mediaRecorder.stop();
+      }
+      clearInterval(state.recordTimer);
+      if (el.voiceOverlay) el.voiceOverlay.style.display = 'none';
+      state.audioChunks = [];
+    });
+  }
+
+  if (el.sendRecBtn) {
+    el.sendRecBtn.addEventListener('click', () => {
+      if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+        state.mediaRecorder.onstop = () => {
+          const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
+          const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+          upload(file, true);
+          state.audioChunks = [];
+        };
+        state.mediaRecorder.stop();
+      }
+      clearInterval(state.recordTimer);
+      if (el.voiceOverlay) el.voiceOverlay.style.display = 'none';
+    });
+  }
 
   // --- Clipboard ---
-  el.clipText.addEventListener('input', () => {
-    el.clipCharCount.textContent = `${el.clipText.value.length} characters`;
-  });
+  if (el.clipText) {
+    el.clipText.addEventListener('input', () => {
+      if (el.clipCharCount) el.clipCharCount.textContent = `${el.clipText.value.length} characters`;
+    });
+  }
 
-  el.syncClipBtn.addEventListener('click', () => {
-    const val = el.clipText.value;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'clipboard_update', content: val }));
-      showToast('✓ Synced to all devices');
-      haptic();
-    }
-  });
-
-  el.clearClipBtn.addEventListener('click', () => {
-    el.clipText.value = '';
-    el.clipCharCount.textContent = '0 characters';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'clipboard_update', content: '' }));
-      showToast('✓ Clipboard cleared');
-    }
-  });
-
-  el.copyClipBtn.addEventListener('click', async () => {
-    const text = el.clipText.value;
-    if (!text) return;
-    try {
-      if (navigator.clipboard) await navigator.clipboard.writeText(text);
-      else {
-        el.clipText.select();
-        document.execCommand('copy');
+  if (el.syncClipBtn) {
+    el.syncClipBtn.addEventListener('click', () => {
+      const val = el.clipText ? el.clipText.value : '';
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'clipboard_update', content: val }));
+        showToast('✓ Synced to all devices');
+        haptic();
       }
-      showToast('✓ Copied to clipboard');
-      haptic();
-    } catch (e) {}
-  });
+    });
+  }
+
+  if (el.clearClipBtn) {
+    el.clearClipBtn.addEventListener('click', () => {
+      if (el.clipText) el.clipText.value = '';
+      if (el.clipCharCount) el.clipCharCount.textContent = '0 characters';
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'clipboard_update', content: '' }));
+        showToast('✓ Clipboard cleared');
+      }
+    });
+  }
+
+  if (el.copyClipBtn) {
+    el.copyClipBtn.addEventListener('click', async () => {
+      const text = el.clipText ? el.clipText.value : '';
+      if (!text) return;
+      try {
+        if (navigator.clipboard) await navigator.clipboard.writeText(text);
+        else {
+          el.clipText.select();
+          document.execCommand('copy');
+        }
+        showToast('✓ Copied to clipboard');
+        haptic();
+      } catch (e) {}
+    });
+  }
 
   function updateClipboardUI(clip) {
     state.clipboard = clip;
-    el.clipText.value = clip.content || '';
-    el.clipCharCount.textContent = `${(clip.content || '').length} characters`;
-    el.clipUpdated.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} (${formatTime(clip.updatedAt)})` : 'Live sync across all devices';
+    if (el.clipText) el.clipText.value = clip.content || '';
+    if (el.clipCharCount) el.clipCharCount.textContent = `${(clip.content || '').length} characters`;
+    if (el.clipUpdated) {
+      el.clipUpdated.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} (${formatTime(clip.updatedAt)})` : 'Live sync across all devices';
+    }
   }
 
   // ==========================================================================
@@ -945,26 +801,33 @@
   // ==========================================================================
   const rtcConfig = {
     iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun.l.google.com:19302' }
     ]
   };
 
-  el.startCallBtn.addEventListener('click', () => {
-    el.startCallSheet.style.display = 'flex';
-    haptic();
-  });
-  el.closeStartCallBackdrop.addEventListener('click', () => el.startCallSheet.style.display = 'none');
+  if (el.startCallBtn && el.startCallSheet) {
+    el.startCallBtn.addEventListener('click', () => {
+      el.startCallSheet.style.display = 'flex';
+      haptic();
+    });
+  }
+  if (el.closeStartCallBackdrop && el.startCallSheet) {
+    el.closeStartCallBackdrop.addEventListener('click', () => el.startCallSheet.style.display = 'none');
+  }
 
   document.querySelectorAll('.call-type-card').forEach(card => {
     card.addEventListener('click', () => {
       const mode = card.dataset.calltype;
-      el.startCallSheet.style.display = 'none';
+      if (el.startCallSheet) el.startCallSheet.style.display = 'none';
       initiateCall(mode);
     });
   });
 
   async function initiateCall(mode) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Camera/Mic requires localhost or HTTPS');
+      return;
+    }
     try {
       state.call.mode = mode;
       await obtainLocalMedia(mode);
@@ -975,7 +838,6 @@
 
       showCallOverlay();
 
-      // Broadcast call initiation over WebSocket
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'call_initiate',
@@ -983,10 +845,10 @@
         }));
       }
 
-      showToast(`📞 Calling on Wi-Fi (${mode})...`);
+      showToast(`📞 Calling on Wi-Fi...`);
       haptic();
     } catch (err) {
-      showToast('Could not access media: ' + err.message);
+      showToast('Could not start call: ' + err.message);
       endCall(false);
     }
   }
@@ -1010,69 +872,76 @@
     state.call.localStream = stream;
 
     if (mode === 'video' || mode === 'screen') {
-      el.localVideo.srcObject = stream;
-      el.localVideo.style.display = 'block';
-      el.flipCamBtn.style.display = mode === 'video' ? 'flex' : 'none';
+      if (el.localVideo) {
+        el.localVideo.srcObject = stream;
+        el.localVideo.style.display = 'block';
+      }
+      if (el.flipCamBtn) el.flipCamBtn.style.display = mode === 'video' ? 'flex' : 'none';
     } else {
-      el.localVideo.style.display = 'none';
-      el.flipCamBtn.style.display = 'none';
+      if (el.localVideo) el.localVideo.style.display = 'none';
+      if (el.flipCamBtn) el.flipCamBtn.style.display = 'none';
     }
 
     return stream;
   }
 
-  // Incoming Call Handler
   let pendingIncomingCall = null;
   function showIncomingCallModal(data) {
     pendingIncomingCall = data;
-    el.incomingCallerName.textContent = data.callerName || 'Peer';
-    el.incomingAvatar.textContent = (data.callerName || '?').charAt(0).toUpperCase();
-    el.incomingAvatar.style.backgroundColor = data.callerColor || '#0a84ff';
-    el.incomingCallType.textContent = `Incoming ${data.callMode.toUpperCase()} Call...`;
-    el.incomingCallSheet.style.display = 'flex';
+    if (el.incomingCallerName) el.incomingCallerName.textContent = data.callerName || 'Peer';
+    if (el.incomingAvatar) {
+      el.incomingAvatar.textContent = (data.callerName || '?').charAt(0).toUpperCase();
+      el.incomingAvatar.style.backgroundColor = data.callerColor || '#0a84ff';
+    }
+    if (el.incomingCallType) el.incomingCallType.textContent = `Incoming ${data.callMode.toUpperCase()} Call...`;
+    if (el.incomingCallSheet) el.incomingCallSheet.style.display = 'flex';
     haptic();
   }
 
-  el.declineCallBtn.addEventListener('click', () => {
-    if (pendingIncomingCall && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'call_decline',
-        callerId: pendingIncomingCall.callerId
-      }));
-    }
-    el.incomingCallSheet.style.display = 'none';
-    pendingIncomingCall = null;
-  });
-
-  el.acceptCallBtn.addEventListener('click', async () => {
-    if (!pendingIncomingCall) return;
-    const callData = pendingIncomingCall;
-    el.incomingCallSheet.style.display = 'none';
-
-    try {
-      state.call.mode = callData.callMode || 'audio';
-      state.call.peerId = callData.callerId;
-      state.call.peerName = callData.callerName;
-      state.call.peerColor = callData.callerColor;
-
-      await obtainLocalMedia(state.call.mode);
-      state.call.active = true;
-      showCallOverlay();
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
+  if (el.declineCallBtn) {
+    el.declineCallBtn.addEventListener('click', () => {
+      if (pendingIncomingCall && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
-          type: 'call_accept',
-          callerId: callData.callerId
+          type: 'call_decline',
+          callerId: pendingIncomingCall.callerId
         }));
       }
-
-      setupPeerConnection(callData.callerId, false);
+      if (el.incomingCallSheet) el.incomingCallSheet.style.display = 'none';
       pendingIncomingCall = null;
-    } catch (err) {
-      showToast('Failed to accept call: ' + err.message);
-      endCall(false);
-    }
-  });
+    });
+  }
+
+  if (el.acceptCallBtn) {
+    el.acceptCallBtn.addEventListener('click', async () => {
+      if (!pendingIncomingCall) return;
+      const callData = pendingIncomingCall;
+      if (el.incomingCallSheet) el.incomingCallSheet.style.display = 'none';
+
+      try {
+        state.call.mode = callData.callMode || 'audio';
+        state.call.peerId = callData.callerId;
+        state.call.peerName = callData.callerName;
+        state.call.peerColor = callData.callerColor;
+
+        await obtainLocalMedia(state.call.mode);
+        state.call.active = true;
+        showCallOverlay();
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'call_accept',
+            callerId: callData.callerId
+          }));
+        }
+
+        setupPeerConnection(callData.callerId, false);
+        pendingIncomingCall = null;
+      } catch (err) {
+        showToast('Failed to accept call: ' + err.message);
+        endCall(false);
+      }
+    });
+  }
 
   async function handleCallAccepted(data) {
     state.call.peerId = data.peerId;
@@ -1083,33 +952,30 @@
   }
 
   function setupPeerConnection(targetPeerId, isCaller) {
-    if (state.call.pc) {
-      state.call.pc.close();
-    }
+    if (state.call.pc) state.call.pc.close();
 
     const pc = new RTCPeerConnection(rtcConfig);
     state.call.pc = pc;
 
-    // Add local tracks
     if (state.call.localStream) {
       state.call.localStream.getTracks().forEach(track => {
         pc.addTrack(track, state.call.localStream);
       });
     }
 
-    // Handle remote track
     pc.ontrack = (event) => {
       state.call.remoteStream = event.streams[0];
       if (event.track.kind === 'video') {
-        el.remoteVideo.srcObject = event.streams[0];
-        el.remoteVideo.style.display = 'block';
-        el.audioCallDisplay.style.display = 'none';
+        if (el.remoteVideo) {
+          el.remoteVideo.srcObject = event.streams[0];
+          el.remoteVideo.style.display = 'block';
+        }
+        if (el.audioCallDisplay) el.audioCallDisplay.style.display = 'none';
       } else if (event.track.kind === 'audio') {
-        el.remoteAudio.srcObject = event.streams[0];
+        if (el.remoteAudio) el.remoteAudio.srcObject = event.streams[0];
       }
     };
 
-    // ICE Candidate
     pc.onicecandidate = (event) => {
       if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -1133,14 +999,12 @@
             }));
           }
         })
-        .catch(err => console.error('Offer error:', err));
+        .catch(err => {});
     }
   }
 
   async function handleWebRTCOffer(data) {
-    if (!state.call.pc) {
-      setupPeerConnection(data.fromId, false);
-    }
+    if (!state.call.pc) setupPeerConnection(data.fromId, false);
     const pc = state.call.pc;
     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
     const answer = await pc.createAnswer();
@@ -1171,21 +1035,23 @@
 
   function showCallOverlay() {
     updateCallOverlayUI();
-    el.callOverlay.style.display = 'flex';
+    if (el.callOverlay) el.callOverlay.style.display = 'flex';
     startCallTimer();
   }
 
   function updateCallOverlayUI() {
-    el.callPeerName.textContent = state.call.peerName;
-    el.callPeerAvatar.textContent = (state.call.peerName || '?').charAt(0).toUpperCase();
-    el.callPeerAvatar.style.backgroundColor = state.call.peerColor || '#0a84ff';
+    if (el.callPeerName) el.callPeerName.textContent = state.call.peerName;
+    if (el.callPeerAvatar) {
+      el.callPeerAvatar.textContent = (state.call.peerName || '?').charAt(0).toUpperCase();
+      el.callPeerAvatar.style.backgroundColor = state.call.peerColor || '#0a84ff';
+    }
 
     if (state.call.mode === 'audio') {
-      el.remoteVideo.style.display = 'none';
-      el.audioCallDisplay.style.display = 'flex';
+      if (el.remoteVideo) el.remoteVideo.style.display = 'none';
+      if (el.audioCallDisplay) el.audioCallDisplay.style.display = 'flex';
     } else {
-      el.remoteVideo.style.display = 'block';
-      el.audioCallDisplay.style.display = 'none';
+      if (el.remoteVideo) el.remoteVideo.style.display = 'block';
+      if (el.audioCallDisplay) el.audioCallDisplay.style.display = 'none';
     }
   }
 
@@ -1196,101 +1062,42 @@
       const sec = Math.floor((Date.now() - state.call.startTime) / 1000);
       const m = String(Math.floor(sec / 60)).padStart(2, '0');
       const s = String(sec % 60).padStart(2, '0');
-      el.callTimer.textContent = `${m}:${s}`;
+      if (el.callTimer) el.callTimer.textContent = `${m}:${s}`;
     }, 1000);
   }
 
-  // Call Controls: Mute, Cam, Screen, Flip, Hang up
-  el.toggleMicBtn.addEventListener('click', () => {
-    if (state.call.localStream) {
-      const audioTrack = state.call.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        state.call.micMuted = !audioTrack.enabled;
-        el.toggleMicBtn.classList.toggle('muted', state.call.micMuted);
-        showToast(state.call.micMuted ? 'Mic Muted' : 'Mic Unmuted');
-        haptic();
-      }
-    }
-  });
-
-  el.toggleCamBtn.addEventListener('click', async () => {
-    if (!state.call.localStream) return;
-    const videoTrack = state.call.localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      state.call.camOff = !videoTrack.enabled;
-      el.toggleCamBtn.classList.toggle('muted', state.call.camOff);
-      el.localVideo.style.display = state.call.camOff ? 'none' : 'block';
-    } else {
-      // Add video track dynamically
-      try {
-        const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const newTrack = camStream.getVideoTracks()[0];
-        state.call.localStream.addTrack(newTrack);
-        if (state.call.pc) {
-          state.call.pc.addTrack(newTrack, state.call.localStream);
+  if (el.toggleMicBtn) {
+    el.toggleMicBtn.addEventListener('click', () => {
+      if (state.call.localStream) {
+        const audioTrack = state.call.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = !audioTrack.enabled;
+          state.call.micMuted = !audioTrack.enabled;
+          el.toggleMicBtn.classList.toggle('muted', state.call.micMuted);
+          showToast(state.call.micMuted ? 'Mic Muted' : 'Mic Unmuted');
+          haptic();
         }
-        el.localVideo.srcObject = state.call.localStream;
-        el.localVideo.style.display = 'block';
-        el.toggleCamBtn.classList.add('active');
-      } catch (e) {}
-    }
-    haptic();
-  });
-
-  el.toggleScreenBtn.addEventListener('click', async () => {
-    if (navigator.mediaDevices.getDisplayMedia) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screenStream.getVideoTracks()[0];
-
-        if (state.call.pc) {
-          const sender = state.call.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-          if (sender) sender.replaceTrack(screenTrack);
-          else state.call.pc.addTrack(screenTrack, screenStream);
-        }
-
-        el.localVideo.srcObject = screenStream;
-        el.localVideo.style.display = 'block';
-        state.call.isScreenSharing = true;
-        el.toggleScreenBtn.classList.add('active');
-        showToast('🖥️ Screen sharing active');
-
-        screenTrack.onended = () => {
-          state.call.isScreenSharing = false;
-          el.toggleScreenBtn.classList.remove('active');
-        };
-        haptic();
-      } catch (err) {}
-    }
-  });
-
-  el.flipCamBtn.addEventListener('click', async () => {
-    state.call.facingMode = state.call.facingMode === 'user' ? 'environment' : 'user';
-    if (state.call.localStream) {
-      const oldTrack = state.call.localStream.getVideoTracks()[0];
-      if (oldTrack) oldTrack.stop();
-
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: state.call.facingMode }
-      });
-      const newTrack = newStream.getVideoTracks()[0];
-      state.call.localStream.removeTrack(oldTrack);
-      state.call.localStream.addTrack(newTrack);
-
-      if (state.call.pc) {
-        const sender = state.call.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) sender.replaceTrack(newTrack);
       }
-      el.localVideo.srcObject = state.call.localStream;
+    });
+  }
+
+  if (el.toggleCamBtn) {
+    el.toggleCamBtn.addEventListener('click', async () => {
+      if (!state.call.localStream) return;
+      const videoTrack = state.call.localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        state.call.camOff = !videoTrack.enabled;
+        el.toggleCamBtn.classList.toggle('muted', state.call.camOff);
+        if (el.localVideo) el.localVideo.style.display = state.call.camOff ? 'none' : 'block';
+      }
       haptic();
-    }
-  });
+    });
+  }
 
-  el.endCallBtn.addEventListener('click', () => {
-    endCall(true);
-  });
+  if (el.endCallBtn) {
+    el.endCallBtn.addEventListener('click', () => endCall(true));
+  }
 
   function endCall(notifyServer = true) {
     if (notifyServer && ws && ws.readyState === WebSocket.OPEN) {
@@ -1308,24 +1115,29 @@
     }
 
     clearInterval(state.call.timerInterval);
-    el.callOverlay.style.display = 'none';
-    el.localVideo.srcObject = null;
-    el.remoteVideo.srcObject = null;
-    el.remoteAudio.srcObject = null;
+    if (el.callOverlay) el.callOverlay.style.display = 'none';
+    if (el.localVideo) el.localVideo.srcObject = null;
+    if (el.remoteVideo) el.remoteVideo.srcObject = null;
+    if (el.remoteAudio) el.remoteAudio.srcObject = null;
     state.call.active = false;
     haptic();
   }
 
   // --- Connected Devices Sheet ---
-  el.networkInfoBtn.addEventListener('click', () => {
-    renderDevicesList();
-    el.devicesSheet.style.display = 'flex';
-    haptic();
-  });
+  if (el.networkInfoBtn && el.devicesSheet) {
+    el.networkInfoBtn.addEventListener('click', () => {
+      renderDevicesList();
+      el.devicesSheet.style.display = 'flex';
+      haptic();
+    });
+  }
 
-  el.closeDevicesBackdrop.addEventListener('click', () => el.devicesSheet.style.display = 'none');
+  if (el.closeDevicesBackdrop && el.devicesSheet) {
+    el.closeDevicesBackdrop.addEventListener('click', () => el.devicesSheet.style.display = 'none');
+  }
 
   function renderDevicesList() {
+    if (!el.devicesList) return;
     if (state.peers.length === 0) {
       el.devicesList.innerHTML = '<div class="empty-state">1 Device Active (You)</div>';
       return;
@@ -1344,85 +1156,101 @@
     }).join('');
   }
 
-  // Export Chat Backup
-  el.exportChatBtn.addEventListener('click', () => {
-    let log = `=== AETHERLAN CHAT BACKUP (${new Date().toLocaleString()}) ===\n\n`;
-    state.messages.forEach(m => {
-      const time = new Date(m.timestamp).toLocaleTimeString();
-      if (m.type === 'text') {
-        log += `[${time}] ${m.senderName}: ${m.text}\n`;
-      } else if (m.type === 'file') {
-        log += `[${time}] ${m.senderName} [FILE]: ${m.file.originalName} (${formatBytes(m.file.size)})\n`;
-      } else if (m.type === 'voice') {
-        log += `[${time}] ${m.senderName} [VOICE MEMO]\n`;
-      }
-    });
+  // Export Chat
+  if (el.exportChatBtn) {
+    el.exportChatBtn.addEventListener('click', () => {
+      let log = `=== AETHERLAN CHAT BACKUP (${new Date().toLocaleString()}) ===\n\n`;
+      state.messages.forEach(m => {
+        const time = new Date(m.timestamp).toLocaleTimeString();
+        if (m.type === 'text') log += `[${time}] ${m.senderName}: ${m.text}\n`;
+        else if (m.type === 'file') log += `[${time}] ${m.senderName} [FILE]: ${m.file.originalName} (${formatBytes(m.file.size)})\n`;
+        else if (m.type === 'voice') log += `[${time}] ${m.senderName} [VOICE MEMO]\n`;
+      });
 
-    const blob = new Blob([log], { type: 'text/plain;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `aetherlan_chat_${Date.now()}.txt`;
-    a.click();
-    showToast('✓ Chat exported');
-    haptic();
-  });
+      const blob = new Blob([log], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `aetherlan_chat_${Date.now()}.txt`;
+      a.click();
+      showToast('✓ Chat exported');
+      haptic();
+    });
+  }
 
   // --- Profile Sheet ---
-  el.profileBtn.addEventListener('click', () => {
-    el.nameInput.value = state.name;
-    highlightColor(state.color);
-    el.profileSheet.style.display = 'flex';
-  });
+  if (el.profileBtn && el.profileSheet) {
+    el.profileBtn.addEventListener('click', () => {
+      if (el.nameInput) el.nameInput.value = state.name;
+      highlightColor(state.color);
+      el.profileSheet.style.display = 'flex';
+      haptic();
+    });
+  }
 
-  el.closeProfileBackdrop.addEventListener('click', () => el.profileSheet.style.display = 'none');
-  el.qrBtn.addEventListener('click', () => {
-    renderQR();
-    el.qrSheet.style.display = 'flex';
-  });
-  el.closeQrBackdrop.addEventListener('click', () => el.qrSheet.style.display = 'none');
+  if (el.closeProfileBackdrop && el.profileSheet) {
+    el.closeProfileBackdrop.addEventListener('click', () => el.profileSheet.style.display = 'none');
+  }
+
+  if (el.qrBtn && el.qrSheet) {
+    el.qrBtn.addEventListener('click', () => {
+      renderQR();
+      el.qrSheet.style.display = 'flex';
+      haptic();
+    });
+  }
+  if (el.closeQrBackdrop && el.qrSheet) {
+    el.closeQrBackdrop.addEventListener('click', () => el.qrSheet.style.display = 'none');
+  }
 
   function highlightColor(col) {
+    if (!el.colorRow) return;
     el.colorRow.querySelectorAll('.color-ball').forEach(b => {
       b.classList.toggle('active', b.dataset.color === col);
     });
   }
 
-  el.colorRow.addEventListener('click', (e) => {
-    if (e.target.dataset.color) highlightColor(e.target.dataset.color);
-  });
+  if (el.colorRow) {
+    el.colorRow.addEventListener('click', (e) => {
+      if (e.target.dataset.color) highlightColor(e.target.dataset.color);
+    });
+  }
 
-  el.randomizeNameBtn.addEventListener('click', () => {
-    el.nameInput.value = getRandomName();
-    highlightColor(COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)]);
-  });
+  if (el.randomizeNameBtn && el.nameInput) {
+    el.randomizeNameBtn.addEventListener('click', () => {
+      el.nameInput.value = getRandomName();
+      highlightColor(COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)]);
+    });
+  }
 
-  el.profileForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const newName = el.nameInput.value.trim();
-    const activeBall = el.colorRow.querySelector('.color-ball.active');
-    const newCol = activeBall ? activeBall.dataset.color : state.color;
+  if (el.profileForm) {
+    el.profileForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newName = el.nameInput ? el.nameInput.value.trim() : '';
+      const activeBall = el.colorRow ? el.colorRow.querySelector('.color-ball.active') : null;
+      const newCol = activeBall ? activeBall.dataset.color : state.color;
 
-    if (newName) {
-      state.name = newName;
-      state.color = newCol;
-      localStorage.setItem('aether_user_name', state.name);
-      localStorage.setItem('aether_user_color', state.color);
-      updateProfileDisplay();
+      if (newName) {
+        state.name = newName;
+        state.color = newCol;
+        localStorage.setItem('aether_user_name', state.name);
+        localStorage.setItem('aether_user_color', state.color);
+        updateProfileDisplay();
 
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'set_profile',
-          deviceId: state.deviceId,
-          name: state.name,
-          color: state.color,
-          device: 'Mobile'
-        }));
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'set_profile',
+            deviceId: state.deviceId,
+            name: state.name,
+            color: state.color,
+            device: 'Mobile'
+          }));
+        }
+        showToast('Profile updated');
+        haptic();
       }
-      showToast('Profile updated');
-      haptic();
-    }
-    el.profileSheet.style.display = 'none';
-  });
+      if (el.profileSheet) el.profileSheet.style.display = 'none';
+    });
+  }
 
   // Offline QR Code Generation
   function renderQR() {
@@ -1430,7 +1258,7 @@
     if (state.localIPs && state.localIPs.length > 0) {
       url = `http://${state.localIPs[0].address}:${state.port}`;
     }
-    el.shareUrl.value = url;
+    if (el.shareUrl) el.shareUrl.value = url;
 
     if (window.QRCode && el.qrCodeContainer) {
       el.qrCodeContainer.innerHTML = '';
@@ -1447,12 +1275,14 @@
     }
   }
 
-  el.copyShareUrlBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(el.shareUrl.value).then(() => {
-      showToast('✓ Link copied');
-      haptic();
+  if (el.copyShareUrlBtn && el.shareUrl) {
+    el.copyShareUrlBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(el.shareUrl.value).then(() => {
+        showToast('✓ Link copied');
+        haptic();
+      });
     });
-  });
+  }
 
   // Tab Switching
   el.tabBtns.forEach(btn => {
@@ -1467,8 +1297,8 @@
     return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
   }
 
-  // --- Initialize App ---
-  initOnboarding();
-  checkPermissions();
+  // --- Auto-start with Persistent Profile ---
+  updateProfileDisplay();
+  connect();
 
 })();
