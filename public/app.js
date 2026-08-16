@@ -1,17 +1,21 @@
-// GhostLAN Client Application
+// AetherLAN 2.0 — Client Matrix Engine
+// Pure Vanilla ES6 • Zero Dependencies
 (function() {
   'use strict';
 
-  // --- State Management ---
+  // --- Master State ---
   const state = {
     myId: null,
-    name: localStorage.getItem('ghost_name') || generateRandomCodename(),
-    color: localStorage.getItem('ghost_color') || getRandomColor(),
+    name: localStorage.getItem('aether_name') || generateCodename(),
+    color: localStorage.getItem('aether_color') || getRandomAura(),
     device: detectDeviceType(),
-    soundEnabled: localStorage.getItem('ghost_sound') !== 'false',
+    room: localStorage.getItem('aether_room') || 'general',
+    e2eeKey: null,
+    e2eeSecret: localStorage.getItem('aether_secret') || '',
+    soundEnabled: localStorage.getItem('aether_sound') !== 'false',
     burnSeconds: 0,
     ws: null,
-    activeTab: 'chatTab',
+    activeTab: 'streamTab',
     unreadCount: 0,
     peers: [],
     messages: [],
@@ -24,190 +28,284 @@
     recordInterval: null,
     recordStartTime: 0,
     typingTimeout: null,
-    isTyping: false
+    isTyping: false,
+    pingStartTime: 0
   };
 
-  // --- DOM Elements ---
+  // --- Element Bindings ---
   const el = {
-    status: document.getElementById('connectionStatus'),
+    latency: document.getElementById('networkLatency'),
+    currentRoomName: document.getElementById('currentRoomName'),
+    roomSelectorBtn: document.getElementById('roomSelectorBtn'),
+    e2eeBtn: document.getElementById('e2eeBtn'),
+    e2eeDot: document.getElementById('e2eeDot'),
     profileBtn: document.getElementById('profileBtn'),
     headerProfileName: document.getElementById('headerProfileName'),
     headerAvatarDot: document.getElementById('headerAvatarDot'),
     soundToggleBtn: document.getElementById('soundToggleBtn'),
-    soundIconOn: document.getElementById('soundIconOn'),
     qrModalBtn: document.getElementById('qrModalBtn'),
-    navTabs: document.querySelectorAll('.nav-tab'),
-    tabPanes: document.querySelectorAll('.tab-pane'),
+    navItems: document.querySelectorAll('.nav-item'),
+    viewPanels: document.querySelectorAll('.view-panel'),
     unreadBadge: document.getElementById('unreadBadge'),
     fileCountBadge: document.getElementById('fileCountBadge'),
     peerCountBadge: document.getElementById('peerCountBadge'),
-    // Chat
-    chatStream: document.getElementById('chatStream'),
-    chatForm: document.getElementById('chatForm'),
-    messageInput: document.getElementById('messageInput'),
-    burnToggleBtn: document.getElementById('burnToggleBtn'),
-    burnerBar: document.getElementById('burnerBar'),
-    burnOpts: document.querySelectorAll('.burn-opt'),
-    attachFileBtn: document.getElementById('attachFileBtn'),
-    filePickerInput: document.getElementById('filePickerInput'),
+    // Stream
+    streamContainer: document.getElementById('streamContainer'),
+    composerForm: document.getElementById('composerForm'),
+    composerInput: document.getElementById('composerInput'),
+    toggleBurnerBtn: document.getElementById('toggleBurnerBtn'),
+    burnerDrawer: document.getElementById('burnerDrawer'),
+    presetBtns: document.querySelectorAll('.preset-btn'),
+    attachBtn: document.getElementById('attachBtn'),
+    composerFileInput: document.getElementById('composerFileInput'),
     typingIndicator: document.getElementById('typingIndicator'),
     typingText: document.getElementById('typingText'),
-    voiceRecordBtn: document.getElementById('voiceRecordBtn'),
-    voiceRecordingUI: document.getElementById('voiceRecordingUI'),
-    recordTimer: document.getElementById('recordTimer'),
+    micBtn: document.getElementById('micBtn'),
+    voiceDock: document.getElementById('voiceDock'),
+    voiceTimer: document.getElementById('voiceTimer'),
+    voiceCanvas: document.getElementById('voiceVisualizerCanvas'),
     cancelVoiceBtn: document.getElementById('cancelVoiceBtn'),
     sendVoiceBtn: document.getElementById('sendVoiceBtn'),
-    // Dropzone
-    largeDropZone: document.getElementById('largeDropZone'),
-    browseFilesBtn: document.getElementById('browseFilesBtn'),
-    uploadProgressBar: document.getElementById('uploadProgressBar'),
-    uploadFileName: document.getElementById('uploadFileName'),
-    uploadPercent: document.getElementById('uploadPercent'),
-    progressFill: document.getElementById('progressFill'),
-    fileGrid: document.getElementById('fileGrid'),
-    filesSummaryText: document.getElementById('filesSummaryText'),
-    // Clipboard
-    clipboardText: document.getElementById('clipboardText'),
-    clipboardMeta: document.getElementById('clipboardMeta'),
-    copyClipBtn: document.getElementById('copyClipBtn'),
-    broadcastClipBtn: document.getElementById('broadcastClipBtn'),
-    clipCharCount: document.getElementById('clipCharCount'),
+    // HyperDrop
+    hyperdropZone: document.getElementById('hyperdropZone'),
+    browseDropBtn: document.getElementById('browseDropBtn'),
+    transferProgressCard: document.getElementById('transferProgressCard'),
+    transferFileName: document.getElementById('transferFileName'),
+    transferPercent: document.getElementById('transferPercent'),
+    transferBarGlow: document.getElementById('transferBarGlow'),
+    catalogGrid: document.getElementById('catalogGrid'),
+    catalogStats: document.getElementById('catalogStats'),
+    // SyncBoard
+    syncboardContent: document.getElementById('syncboardContent'),
+    syncMeta: document.getElementById('syncMeta'),
+    copySyncBtn: document.getElementById('copySyncBtn'),
+    broadcastSyncBtn: document.getElementById('broadcastSyncBtn'),
+    syncCharCount: document.getElementById('syncCharCount'),
     // Radar
-    peerList: document.getElementById('peerList'),
-    lanUrlsList: document.getElementById('lanUrlsList'),
+    radarCanvas: document.getElementById('radarScreenCanvas'),
+    nodesList: document.getElementById('nodesList'),
+    endpointsList: document.getElementById('endpointsList'),
     // Modals
+    roomModal: document.getElementById('roomModal'),
+    closeRoomModal: document.getElementById('closeRoomModal'),
+    customRoomForm: document.getElementById('customRoomForm'),
+    newRoomInput: document.getElementById('newRoomInput'),
+    e2eeModal: document.getElementById('e2eeModal'),
+    closeE2eeModal: document.getElementById('closeE2eeModal'),
+    e2eeForm: document.getElementById('e2eeForm'),
+    e2eeSecretInput: document.getElementById('e2eeSecretInput'),
+    disableE2eeBtn: document.getElementById('disableE2eeBtn'),
     profileModal: document.getElementById('profileModal'),
     closeProfileModal: document.getElementById('closeProfileModal'),
     profileForm: document.getElementById('profileForm'),
-    customNameInput: document.getElementById('customNameInput'),
-    colorPickerGrid: document.getElementById('colorPickerGrid'),
-    randomizeProfileBtn: document.getElementById('randomizeProfileBtn'),
+    codenameInput: document.getElementById('codenameInput'),
+    auraPalette: document.getElementById('auraPalette'),
+    randomizeCodenameBtn: document.getElementById('randomizeCodenameBtn'),
     qrModal: document.getElementById('qrModal'),
     closeQrModal: document.getElementById('closeQrModal'),
-    qrCanvas: document.getElementById('qrCanvas'),
-    primaryShareUrl: document.getElementById('primaryShareUrl'),
-    copyShareUrlBtn: document.getElementById('copyShareUrlBtn'),
-    toastContainer: document.getElementById('toastContainer')
+    qrCodeCanvas: document.getElementById('qrCodeCanvas'),
+    shareUrlInput: document.getElementById('shareUrlInput'),
+    copyShareBtn: document.getElementById('copyShareBtn'),
+    toastHub: document.getElementById('toastHub')
   };
 
-  // --- Sound FX Synthesizer (Web Audio API) ---
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  function playSound(type) {
+  // --- Web Audio Synthesizer ---
+  let audioContext = null;
+  function getAudioCtx() {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') audioContext.resume();
+    return audioContext;
+  }
+
+  function playCyberSound(type) {
     if (!state.soundEnabled) return;
     try {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      gain.connect(ctx.destination);
 
-      const now = audioCtx.currentTime;
-      if (type === 'message') {
-        osc.frequency.setValueAtTime(520, now);
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
-        gain.gain.setValueAtTime(0.15, now);
+      if (type === 'transmit') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else if (type === 'receive') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(700, now);
+        osc.frequency.exponentialRampToValueAtTime(500, now + 0.15);
+        gain.gain.setValueAtTime(0.14, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
         osc.start(now);
         osc.stop(now + 0.15);
       } else if (type === 'drop') {
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(600, now + 0.18);
-        gain.gain.setValueAtTime(0.2, now);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(640, now + 0.2);
+        gain.gain.setValueAtTime(0.18, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
         osc.start(now);
         osc.stop(now + 0.2);
-      } else if (type === 'pop') {
-        osc.frequency.setValueAtTime(900, now);
-        osc.frequency.exponentialRampToValueAtTime(450, now + 0.08);
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      } else if (type === 'burn') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.18);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
         osc.start(now);
-        osc.stop(now + 0.08);
+        osc.stop(now + 0.18);
       }
+    } catch (e) {}
+  }
+
+  // --- Cryptography (AES-GCM 256) ---
+  async function deriveKey(secret) {
+    if (!secret) return null;
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    );
+    return await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: enc.encode('aetherlan_salt_mesh'),
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function encryptText(text) {
+    if (!state.e2eeKey) return text;
+    try {
+      const enc = new TextEncoder();
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        state.e2eeKey,
+        enc.encode(text)
+      );
+      const combined = new Uint8Array(iv.length + encrypted.byteLength);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(encrypted), iv.length);
+      return 'E2EE:' + btoa(String.fromCharCode.apply(null, combined));
     } catch (e) {
-      // Audio muted
+      return text;
     }
   }
 
-  // --- Random Utilities ---
-  function generateRandomCodename() {
-    const prefixes = ['Cyber', 'Neon', 'Shadow', 'Ghost', 'Zero', 'Quantum', 'Pulse', 'Hyper', 'Dark', 'Nova'];
-    const nouns = ['Fox', 'Raven', 'Phantom', 'Runner', 'Specter', 'Viper', 'Otter', 'Nexus', 'Drifter', 'Blade'];
+  async function decryptText(payload) {
+    if (!payload || !payload.startsWith('E2EE:') || !state.e2eeKey) return payload;
+    try {
+      const raw = atob(payload.replace('E2EE:', ''));
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const iv = bytes.slice(0, 12);
+      const data = bytes.slice(12);
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        state.e2eeKey,
+        data
+      );
+      return new TextDecoder().decode(decrypted);
+    } catch (e) {
+      return '🔒 [Encrypted Payload - Incorrect Room Key]';
+    }
+  }
+
+  // --- Utilities ---
+  function generateCodename() {
+    const prefixes = ['Aether', 'Cyber', 'Neon', 'Vortex', 'Pulse', 'Hyper', 'Shadow', 'Quantum', 'Nova', 'Specter'];
+    const nouns = ['Fox', 'Phantom', 'Runner', 'Raven', 'Viper', 'Otter', 'Matrix', 'Drifter', 'Blade', 'Apex'];
     const p = prefixes[Math.floor(Math.random() * prefixes.length)];
     const n = nouns[Math.floor(Math.random() * nouns.length)];
     return `${p}${n}_${Math.floor(10 + Math.random() * 90)}`;
   }
 
-  function getRandomColor() {
-    const colors = ['#00f2fe', '#00ff87', '#ff007f', '#ffaa00', '#9d4edd', '#38ef7d', '#ff5252', '#4facfe'];
-    return colors[Math.floor(Math.random() * colors.length)];
+  function getRandomAura() {
+    const auras = ['#00f2fe', '#00ff87', '#ff007f', '#ffaa00', '#9d4edd', '#38ef7d', '#ff4757', '#4facfe'];
+    return auras[Math.floor(Math.random() * auras.length)];
   }
 
   function detectDeviceType() {
     const ua = navigator.userAgent;
     if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'Tablet';
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated/i.test(ua)) return 'Mobile';
+    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry/i.test(ua)) return 'Mobile';
     return 'Desktop';
   }
 
-  function formatBytes(bytes, decimals = 1) {
+  function formatBytes(bytes) {
     if (!+bytes) return '0 B';
     const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   }
 
   function formatTime(ts) {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   function showToast(msg) {
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.textContent = msg;
-    el.toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 2400);
+    const t = document.createElement('div');
+    t.className = 'toast-item';
+    t.textContent = msg;
+    el.toastHub.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
   }
 
-  function updateHeaderProfile() {
+  function updateIdentityUI() {
     el.headerProfileName.textContent = state.name;
     el.headerAvatarDot.style.backgroundColor = state.color;
+    el.currentRoomName.textContent = state.room;
   }
 
   function switchTab(tabId) {
     state.activeTab = tabId;
-    el.navTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
-    el.tabPanes.forEach(pane => pane.classList.toggle('active', pane.id === tabId));
+    el.navItems.forEach(item => item.classList.toggle('active', item.dataset.tab === tabId));
+    el.viewPanels.forEach(panel => panel.classList.toggle('active', panel.id === tabId));
 
-    if (tabId === 'chatTab') {
+    if (tabId === 'streamTab') {
       state.unreadCount = 0;
       el.unreadBadge.style.display = 'none';
-      scrollToBottom();
+      scrollStream();
     }
   }
 
-  function scrollToBottom() {
+  function scrollStream() {
     requestAnimationFrame(() => {
-      el.chatStream.scrollTop = el.chatStream.scrollHeight;
+      el.streamContainer.scrollTop = el.streamContainer.scrollHeight;
     });
   }
 
   // --- WebSocket Connection ---
-  function initWebSocket() {
+  function connectMesh() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
     
-    el.status.textContent = 'Connecting...';
-    el.status.style.color = 'var(--text-muted)';
+    el.latency.textContent = '● Connecting...';
+    el.latency.style.color = 'var(--text-muted)';
 
     state.ws = new WebSocket(wsUrl);
 
     state.ws.onopen = () => {
-      el.status.textContent = 'LAN Active';
-      el.status.style.color = 'var(--accent-emerald)';
+      el.latency.textContent = '● LAN Active';
+      el.latency.style.color = 'var(--accent-emerald)';
 
       state.ws.send(JSON.stringify({
         type: 'set_profile',
@@ -215,43 +313,57 @@
         color: state.color,
         device: state.device
       }));
+
+      // Start ping heartbeat
+      setInterval(measurePing, 5000);
     };
 
     state.ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        handleWsMessage(msg);
-      } catch (err) {
-        console.error('WS Parse Error', err);
+        handleMeshPacket(msg);
+      } catch (e) {
+        console.error('Packet Error', e);
       }
     };
 
     state.ws.onclose = () => {
-      el.status.textContent = 'Reconnecting...';
-      el.status.style.color = 'var(--accent-orange)';
-      setTimeout(initWebSocket, 2000);
-    };
-
-    state.ws.onerror = (err) => {
-      console.error('WS Error', err);
+      el.latency.textContent = '● Offline';
+      el.latency.style.color = 'var(--accent-amber)';
+      setTimeout(connectMesh, 2000);
     };
   }
 
-  function handleWsMessage(data) {
+  function measurePing() {
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      state.pingStartTime = performance.now();
+      state.ws.send(JSON.stringify({ type: 'ping', time: Date.now() }));
+    }
+  }
+
+  async function handleMeshPacket(data) {
     switch (data.type) {
       case 'init': {
         state.myId = data.yourId;
+        state.room = data.room || 'general';
         state.peers = data.peers || [];
         state.messages = data.messages || [];
         state.files = data.files || [];
         state.localIPs = data.localIPs || [];
         state.port = data.port || 4000;
 
+        updateIdentityUI();
         renderPeers();
-        renderAllMessages();
+        await renderAllMessages();
         renderFiles();
-        if (data.clipboard) updateClipboardUI(data.clipboard);
-        renderLanUrls();
+        if (data.clipboard) updateSyncUI(data.clipboard);
+        renderEndpoints();
+        break;
+      }
+
+      case 'pong': {
+        const latency = Math.round(performance.now() - state.pingStartTime);
+        el.latency.textContent = `● LAN ${latency}ms`;
         break;
       }
 
@@ -259,8 +371,8 @@
         state.peers = data.peers;
         renderPeers();
         if (data.peer.id !== state.myId) {
-          showToast(`⚡ ${data.peer.name} joined LAN`);
-          playSound('pop');
+          showToast(`⚡ ${data.peer.name} entered #${state.room}`);
+          playCyberSound('receive');
         }
         break;
       }
@@ -272,139 +384,158 @@
         break;
       }
 
+      case 'room_switched': {
+        state.room = data.room;
+        state.peers = data.peers || [];
+        state.messages = data.messages || [];
+        state.files = data.files || [];
+        updateIdentityUI();
+        renderPeers();
+        await renderAllMessages();
+        renderFiles();
+        if (data.clipboard) updateSyncUI(data.clipboard);
+        showToast(`Switched to #${state.room}`);
+        break;
+      }
+
       case 'new_message': {
-        appendMessage(data.message);
-        if (state.activeTab !== 'chatTab') {
+        await appendMessage(data.message);
+        if (state.activeTab !== 'streamTab') {
           state.unreadCount++;
           el.unreadBadge.textContent = state.unreadCount;
           el.unreadBadge.style.display = 'inline-block';
         }
-        playSound('message');
+        playCyberSound('receive');
         break;
       }
 
       case 'message_burned': {
-        removeBurnedMessage(data.messageId);
+        burnMessage(data.messageId);
+        playCyberSound('burn');
         break;
       }
 
       case 'reaction_updated': {
-        updateMessageReactions(data.messageId, data.reactions);
+        updateReactions(data.messageId, data.reactions);
         break;
       }
 
       case 'typing': {
-        handleTypingBroadcast(data);
+        handleTyping(data);
         break;
       }
 
       case 'file_list': {
         state.files = data.files;
         renderFiles();
-        playSound('drop');
+        playCyberSound('drop');
         break;
       }
 
       case 'clipboard_updated': {
-        updateClipboardUI(data.clipboard);
-        showToast('📋 Clipboard updated');
+        updateSyncUI(data.clipboard);
+        showToast('📋 SyncBoard updated');
         break;
       }
     }
   }
 
-  // --- Chat Stream Rendering ---
-  function renderAllMessages() {
-    el.chatStream.innerHTML = `
-      <div class="system-message banner-welcome">
-        <span class="system-tag">LAN ACTIVE</span>
-        <p>Zero internet required. All messages, files & audio stay on this local Wi-Fi.</p>
+  // --- Stream Rendering ---
+  async function renderAllMessages() {
+    el.streamContainer.innerHTML = `
+      <div class="stream-banner">
+        <div class="banner-badge">CHANNEL #${state.room.toUpperCase()} • P2P MESH</div>
+        <p>100% Zero-Internet Local Subnet. No external cloud or third-party servers.</p>
       </div>
     `;
-    state.messages.forEach(msg => appendMessage(msg, false));
-    scrollToBottom();
+    for (const msg of state.messages) {
+      await appendMessage(msg, false);
+    }
+    scrollStream();
   }
 
-  function appendMessage(msg, shouldScroll = true) {
+  async function appendMessage(msg, shouldScroll = true) {
     const isSelf = msg.senderId === state.myId || msg.senderName === state.name;
     const row = document.createElement('div');
-    row.className = `message-row ${isSelf ? 'self' : 'peer'}`;
+    row.className = `message-bubble-row ${isSelf ? 'self' : 'peer'}`;
     row.id = `msg_${msg.id}`;
 
-    let contentHtml = '';
+    let bodyHtml = '';
 
     if (msg.type === 'text') {
-      contentHtml = escapeHTML(msg.text);
+      let textContent = msg.text;
+      if (msg.isEncrypted) {
+        textContent = await decryptText(msg.text);
+      }
+      bodyHtml = escapeHTML(textContent);
     } else if (msg.type === 'file') {
-      contentHtml = `
-        <div class="chat-file-card">
-          <div class="chat-file-icon">
+      bodyHtml = `
+        <div class="stream-artifact-card">
+          <div class="artifact-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
           </div>
-          <div class="chat-file-info">
-            <div class="chat-file-name">${escapeHTML(msg.file.originalName)}</div>
-            <div class="chat-file-size">${formatBytes(msg.file.size)}</div>
+          <div class="artifact-meta">
+            <div class="artifact-filename">${escapeHTML(msg.file.originalName)}</div>
+            <div class="artifact-filesize">${formatBytes(msg.file.size)}</div>
           </div>
-          <a href="${msg.file.url}?download=1" download="${escapeHTML(msg.file.originalName)}" class="chat-file-download" target="_blank">Download</a>
+          <a href="${msg.file.url}?download=1" download="${escapeHTML(msg.file.originalName)}" class="artifact-download-btn" target="_blank">Download</a>
         </div>
       `;
     } else if (msg.type === 'voice') {
-      contentHtml = `
-        <div class="voice-msg-player">
-          <button class="play-voice-btn" data-url="${msg.file.url}">
+      bodyHtml = `
+        <div class="voice-memo-player">
+          <button class="voice-play-toggle" data-url="${msg.file.url}">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           </button>
-          <div class="voice-waveform">
-            <span class="wave-bar" style="height: 40%"></span>
-            <span class="wave-bar" style="height: 70%"></span>
-            <span class="wave-bar" style="height: 100%"></span>
-            <span class="wave-bar" style="height: 50%"></span>
-            <span class="wave-bar" style="height: 85%"></span>
-            <span class="wave-bar" style="height: 60%"></span>
-            <span class="wave-bar" style="height: 90%"></span>
-            <span class="wave-bar" style="height: 45%"></span>
+          <div class="waveform-track">
+            <span class="wave-segment" style="height: 40%"></span>
+            <span class="wave-segment" style="height: 75%"></span>
+            <span class="wave-segment" style="height: 100%"></span>
+            <span class="wave-segment" style="height: 60%"></span>
+            <span class="wave-segment" style="height: 90%"></span>
+            <span class="wave-segment" style="height: 50%"></span>
+            <span class="wave-segment" style="height: 85%"></span>
           </div>
-          <span class="voice-duration">Audio Note</span>
+          <span class="voice-time-label">Voice Memo</span>
         </div>
       `;
     }
 
-    const burnTag = msg.burnSeconds ? `<span class="burn-badge">🔥 ${msg.burnSeconds}s</span>` : '';
+    const burnTag = msg.burnSeconds ? `<span class="burn-indicator-chip">🔥 ${msg.burnSeconds}s</span>` : '';
 
     row.innerHTML = `
-      <div class="message-header">
-        <span class="msg-sender" style="color: ${msg.senderColor || '#00f2fe'}">${escapeHTML(msg.senderName)}</span>
-        <span class="msg-time">${formatTime(msg.timestamp)}</span>
+      <div class="msg-meta-header">
+        <span class="msg-sender-name" style="color: ${msg.senderColor || '#00f2fe'}">${escapeHTML(msg.senderName)}</span>
+        <span class="msg-timestamp">${formatTime(msg.timestamp)}</span>
         ${burnTag}
       </div>
-      <div class="message-bubble">
-        ${contentHtml}
-        ${msg.burnSeconds ? `<div class="burn-timer-bar" id="burn_bar_${msg.id}"></div>` : ''}
+      <div class="msg-body-card">
+        ${bodyHtml}
+        ${msg.burnSeconds ? `<div class="burn-progress-bar" id="burn_bar_${msg.id}"></div>` : ''}
       </div>
-      <div class="msg-reactions" id="reactions_${msg.id}">
-        <button class="react-trigger-btn" data-msgid="${msg.id}">+😀</button>
+      <div class="reactions-tray" id="reactions_${msg.id}">
+        <button class="add-reaction-btn" data-msgid="${msg.id}">+😀</button>
       </div>
     `;
 
-    el.chatStream.appendChild(row);
+    el.streamContainer.appendChild(row);
 
     if (msg.burnSeconds && msg.burnsAt) {
-      startBurnCountdown(msg.id, msg.burnSeconds, msg.burnsAt);
+      animateBurnBar(msg.id, msg.burnSeconds, msg.burnsAt);
     }
 
-    renderReactionsList(msg.id, msg.reactions);
-    if (shouldScroll) scrollToBottom();
+    renderReactionChips(msg.id, msg.reactions);
+    if (shouldScroll) scrollStream();
   }
 
-  function startBurnCountdown(msgId, sec, burnsAt) {
+  function animateBurnBar(msgId, sec, burnsAt) {
     const bar = document.getElementById(`burn_bar_${msgId}`);
     if (!bar) return;
     const remaining = burnsAt - Date.now();
-    const pct = Math.max(0, (remaining / (sec * 1000)) * 100);
-    bar.style.width = `${pct}%`;
+    bar.style.width = `${Math.max(0, (remaining / (sec * 1000)) * 100)}%`;
 
     const timer = setInterval(() => {
       const nowRem = burnsAt - Date.now();
@@ -417,104 +548,110 @@
     }, 500);
   }
 
-  function removeBurnedMessage(msgId) {
+  function burnMessage(msgId) {
     const row = document.getElementById(`msg_${msgId}`);
     if (row) {
       row.style.transition = 'opacity 0.3s, transform 0.3s';
       row.style.opacity = '0';
-      row.style.transform = 'scale(0.9)';
+      row.style.transform = 'scale(0.85)';
       setTimeout(() => row.remove(), 300);
     }
   }
 
   // --- Reactions ---
-  const EMOJIS = ['🔥', '💀', '🚀', '⚡', '❤️', '😂'];
+  const EMOJI_SET = ['🔥', '💀', '🚀', '⚡', '❤️', '😂', '🎯'];
 
-  function renderReactionsList(msgId, reactions = {}) {
-    const container = document.getElementById(`reactions_${msgId}`);
-    if (!container) return;
+  function renderReactionChips(msgId, reactions = {}) {
+    const tray = document.getElementById(`reactions_${msgId}`);
+    if (!tray) return;
 
     let html = '';
     for (const [emoji, users] of Object.entries(reactions)) {
       if (users && users.length > 0) {
-        const hasReacted = users.includes(state.name);
-        html += `<button class="reaction-chip ${hasReacted ? 'reacted' : ''}" data-msgid="${msgId}" data-emoji="${emoji}">${emoji} ${users.length}</button>`;
+        const active = users.includes(state.name);
+        html += `<button class="reaction-pill ${active ? 'active' : ''}" data-msgid="${msgId}" data-emoji="${emoji}">${emoji} ${users.length}</button>`;
       }
     }
-    html += `<button class="react-trigger-btn" data-msgid="${msgId}">+😀</button>`;
-    container.innerHTML = html;
+    html += `<button class="add-reaction-btn" data-msgid="${msgId}">+😀</button>`;
+    tray.innerHTML = html;
   }
 
-  function updateMessageReactions(msgId, reactions) {
-    renderReactionsList(msgId, reactions);
+  function updateReactions(msgId, reactions) {
+    renderReactionChips(msgId, reactions);
   }
 
   document.addEventListener('click', (e) => {
-    if (e.target.closest('.reaction-chip')) {
-      const chip = e.target.closest('.reaction-chip');
-      sendReaction(chip.dataset.msgid, chip.dataset.emoji);
+    if (e.target.closest('.reaction-pill')) {
+      const chip = e.target.closest('.reaction-pill');
+      state.ws.send(JSON.stringify({
+        type: 'reaction',
+        messageId: chip.dataset.msgid,
+        emoji: chip.dataset.emoji
+      }));
       return;
     }
 
-    if (e.target.closest('.react-trigger-btn')) {
-      const trigger = e.target.closest('.react-trigger-btn');
-      promptReaction(trigger.dataset.msgid, trigger);
+    if (e.target.closest('.add-reaction-btn')) {
+      const btn = e.target.closest('.add-reaction-btn');
+      openEmojiPopover(btn.dataset.msgid, btn);
       return;
     }
 
-    if (e.target.closest('.play-voice-btn')) {
-      const playBtn = e.target.closest('.play-voice-btn');
-      playAudioClip(playBtn.dataset.url, playBtn);
+    if (e.target.closest('.voice-play-toggle')) {
+      const btn = e.target.closest('.voice-play-toggle');
+      toggleAudioPlay(btn.dataset.url, btn);
       return;
     }
   });
 
-  let activeAudio = null;
-  function playAudioClip(url, btn) {
-    if (activeAudio) {
-      activeAudio.pause();
-      activeAudio = null;
+  let activeAudioInstance = null;
+  function toggleAudioPlay(url, btn) {
+    if (activeAudioInstance) {
+      activeAudioInstance.pause();
+      activeAudioInstance = null;
+      document.querySelectorAll('.voice-play-toggle').forEach(b => {
+        b.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+      });
     }
+
     const audio = new Audio(url);
-    activeAudio = audio;
+    activeAudioInstance = audio;
     btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
     audio.play();
     audio.onended = () => {
       btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-      activeAudio = null;
+      activeAudioInstance = null;
     };
   }
 
-  function promptReaction(msgId, targetEl) {
-    const existing = document.querySelector('.emoji-popover');
-    if (existing) existing.remove();
-
+  function openEmojiPopover(msgId, target) {
+    document.querySelectorAll('.emoji-pop').forEach(p => p.remove());
     const pop = document.createElement('div');
-    pop.className = 'emoji-popover';
+    pop.className = 'emoji-pop';
     pop.style.cssText = `
       position: absolute;
-      background: var(--bg-card);
-      border: 1px solid var(--border-accent);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-active);
       border-radius: var(--radius-full);
       padding: 4px 8px;
       display: flex;
       gap: 6px;
       z-index: 50;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
     `;
 
-    EMOJIS.forEach(emoji => {
+    EMOJI_SET.forEach(emoji => {
       const b = document.createElement('button');
       b.style.cssText = 'background:none; border:none; font-size:1.1rem; cursor:pointer; padding:2px;';
       b.textContent = emoji;
       b.onclick = () => {
-        sendReaction(msgId, emoji);
+        state.ws.send(JSON.stringify({ type: 'reaction', messageId: msgId, emoji }));
         pop.remove();
       };
       pop.appendChild(b);
     });
 
-    targetEl.parentElement.appendChild(pop);
+    target.parentElement.appendChild(pop);
     setTimeout(() => {
       document.addEventListener('click', function closeEmoji(ev) {
         if (!pop.contains(ev.target)) {
@@ -525,16 +662,10 @@
     }, 10);
   }
 
-  function sendReaction(msgId, emoji) {
-    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-      state.ws.send(JSON.stringify({ type: 'reaction', messageId: msgId, emoji }));
-    }
-  }
-
-  // --- Input & Submit ---
-  el.messageInput.addEventListener('input', () => {
-    el.messageInput.style.height = 'auto';
-    el.messageInput.style.height = Math.min(el.messageInput.scrollHeight, 120) + 'px';
+  // --- Composer & Typing ---
+  el.composerInput.addEventListener('input', () => {
+    el.composerInput.style.height = 'auto';
+    el.composerInput.style.height = Math.min(el.composerInput.scrollHeight, 130) + 'px';
 
     if (!state.isTyping && state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.isTyping = true;
@@ -549,25 +680,35 @@
     }, 1500);
   });
 
-  el.chatForm.addEventListener('submit', (e) => {
+  el.composerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const text = el.messageInput.value.trim();
-    if (!text) return;
+    const raw = el.composerInput.value.trim();
+    if (!raw) return;
+
+    let payloadText = raw;
+    let isEncrypted = false;
+
+    if (state.e2eeKey) {
+      payloadText = await encryptText(raw);
+      isEncrypted = true;
+    }
 
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify({
         type: 'chat_message',
-        text: text,
+        text: payloadText,
+        isEncrypted,
         burnSeconds: state.burnSeconds
       }));
-      el.messageInput.value = '';
-      el.messageInput.style.height = 'auto';
+      el.composerInput.value = '';
+      el.composerInput.style.height = 'auto';
       state.isTyping = false;
       state.ws.send(JSON.stringify({ type: 'typing', isTyping: false }));
+      playCyberSound('transmit');
     }
   });
 
-  function handleTypingBroadcast(data) {
+  function handleTyping(data) {
     if (data.isTyping) {
       el.typingText.textContent = `${data.name} is typing...`;
       el.typingIndicator.style.display = 'flex';
@@ -576,84 +717,86 @@
     }
   }
 
-  el.burnToggleBtn.addEventListener('click', () => el.burnerBar.classList.toggle('open'));
+  el.toggleBurnerBtn.addEventListener('click', () => el.burnerDrawer.classList.toggle('open'));
 
-  el.burnOpts.forEach(btn => {
+  el.presetBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      el.burnOpts.forEach(b => b.classList.remove('active'));
+      el.presetBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.burnSeconds = parseInt(btn.dataset.sec, 10);
-      showToast(state.burnSeconds > 0 ? `🔥 Burn mode: ${state.burnSeconds}s` : 'Burn mode Off');
+      showToast(state.burnSeconds > 0 ? `🔥 Vaporize mode: ${state.burnSeconds}s` : 'Vaporize mode Off');
     });
   });
 
-  // --- Uploads (Zero-Dep Streaming API) ---
-  el.attachFileBtn.addEventListener('click', () => el.filePickerInput.click());
-  el.browseFilesBtn.addEventListener('click', () => el.filePickerInput.click());
+  // --- HyperDrop File Transfers ---
+  el.attachBtn.addEventListener('click', () => el.composerFileInput.click());
+  el.browseDropBtn.addEventListener('click', () => el.composerFileInput.click());
 
-  el.filePickerInput.addEventListener('change', () => {
-    if (el.filePickerInput.files.length > 0) {
-      uploadFile(el.filePickerInput.files[0]);
-      el.filePickerInput.value = '';
+  el.composerFileInput.addEventListener('change', () => {
+    if (el.composerFileInput.files.length > 0) {
+      beamFile(el.composerFileInput.files[0]);
+      el.composerFileInput.value = '';
     }
   });
 
-  ['dragenter', 'dragover'].forEach(name => {
-    el.largeDropZone.addEventListener(name, (e) => {
+  ['dragenter', 'dragover'].forEach(evt => {
+    el.hyperdropZone.addEventListener(evt, (e) => {
       e.preventDefault();
-      el.largeDropZone.classList.add('dragover');
+      el.hyperdropZone.classList.add('dragover');
     });
   });
 
-  ['dragleave', 'drop'].forEach(name => {
-    el.largeDropZone.addEventListener(name, (e) => {
+  ['dragleave', 'drop'].forEach(evt => {
+    el.hyperdropZone.addEventListener(evt, (e) => {
       e.preventDefault();
-      el.largeDropZone.classList.remove('dragover');
+      el.hyperdropZone.classList.remove('dragover');
     });
   });
 
-  el.largeDropZone.addEventListener('drop', (e) => {
+  el.hyperdropZone.addEventListener('drop', (e) => {
     if (e.dataTransfer.files.length > 0) {
-      uploadFile(e.dataTransfer.files[0]);
+      beamFile(e.dataTransfer.files[0]);
     }
   });
 
-  function uploadFile(file, isVoice = false) {
-    el.uploadProgressBar.style.display = 'block';
-    el.uploadFileName.textContent = file.name || 'Uploading audio note...';
-    el.uploadPercent.textContent = '0%';
-    el.progressFill.style.width = '0%';
+  function beamFile(file, isVoice = false) {
+    el.transferProgressCard.style.display = 'block';
+    el.transferFileName.textContent = file.name || 'Voice Memo';
+    el.transferPercent.textContent = '0%';
+    el.transferBarGlow.style.width = '0%';
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload', true);
 
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name || 'voice_note.webm'));
+    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name || 'audio_memo.webm'));
     xhr.setRequestHeader('X-Sender-Name', encodeURIComponent(state.name));
     xhr.setRequestHeader('X-Sender-Color', encodeURIComponent(state.color));
     xhr.setRequestHeader('X-Sender-Id', state.myId || 'anon');
+    xhr.setRequestHeader('X-Room-Id', state.room);
     xhr.setRequestHeader('X-Is-Voice', isVoice ? 'true' : 'false');
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const pct = Math.round((e.loaded / e.total) * 100);
-        el.uploadPercent.textContent = `${pct}%`;
-        el.progressFill.style.width = `${pct}%`;
+        el.transferPercent.textContent = `${pct}%`;
+        el.transferBarGlow.style.width = `${pct}%`;
       }
     };
 
     xhr.onload = () => {
-      setTimeout(() => { el.uploadProgressBar.style.display = 'none'; }, 600);
+      setTimeout(() => { el.transferProgressCard.style.display = 'none'; }, 500);
       if (xhr.status >= 200 && xhr.status < 300) {
-        showToast('🚀 Dropped to LAN!');
+        showToast('🚀 Beamed to LAN!');
+        playCyberSound('transmit');
       } else {
-        showToast('❌ Upload failed.');
+        showToast('❌ Transfer failed.');
       }
     };
 
     xhr.onerror = () => {
-      el.uploadProgressBar.style.display = 'none';
-      showToast('❌ Network error during upload.');
+      el.transferProgressCard.style.display = 'none';
+      showToast('❌ Network error during transfer.');
     };
 
     xhr.send(file);
@@ -661,20 +804,20 @@
 
   function renderFiles() {
     el.fileCountBadge.textContent = state.files.length;
-    el.filesSummaryText.textContent = `${state.files.length} files available`;
+    el.catalogStats.textContent = `${state.files.length} items`;
 
     if (state.files.length === 0) {
-      el.fileGrid.innerHTML = '<div class="empty-state">No files uploaded yet. Drop a file to share with anyone on your Wi-Fi.</div>';
+      el.catalogGrid.innerHTML = '<div class="empty-placeholder">No artifacts beamed yet. Drop a file to begin sharing.</div>';
       return;
     }
 
-    el.fileGrid.innerHTML = state.files.map(f => `
-      <div class="file-card">
-        <div class="chat-file-info">
-          <div class="chat-file-name" title="${escapeHTML(f.originalName)}">${escapeHTML(f.originalName)}</div>
-          <div class="chat-file-size">${formatBytes(f.size)} • By <span style="color:${f.senderColor}">${escapeHTML(f.senderName)}</span></div>
+    el.catalogGrid.innerHTML = state.files.map(f => `
+      <div class="catalog-card">
+        <div class="artifact-meta">
+          <div class="artifact-filename" title="${escapeHTML(f.originalName)}">${escapeHTML(f.originalName)}</div>
+          <div class="artifact-filesize">${formatBytes(f.size)} • By <span style="color:${f.senderColor}">${escapeHTML(f.senderName)}</span></div>
         </div>
-        <a href="${f.url}?download=1" download="${escapeHTML(f.originalName)}" class="primary-btn small" target="_blank">
+        <a href="${f.url}?download=1" download="${escapeHTML(f.originalName)}" class="glow-action-btn small" target="_blank">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -686,31 +829,59 @@
     `).join('');
   }
 
-  // --- Voice Note Recording ---
-  el.voiceRecordBtn.addEventListener('click', async () => {
+  // --- Voice Recording & Waveform Visualizer ---
+  let voiceAnimFrame = null;
+  el.micBtn.addEventListener('click', async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       state.mediaRecorder = new MediaRecorder(stream);
       state.audioChunks = [];
+
+      // Audio Visualizer Setup
+      const ctx = getAudioCtx();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      const canvasCtx = el.voiceCanvas.getContext('2d');
+
+      function drawWave() {
+        voiceAnimFrame = requestAnimationFrame(drawWave);
+        analyser.getByteFrequencyData(dataArray);
+        canvasCtx.clearRect(0, 0, el.voiceCanvas.width, el.voiceCanvas.height);
+        const barWidth = (el.voiceCanvas.width / bufferLength) * 1.5;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = (dataArray[i] / 255) * el.voiceCanvas.height;
+          canvasCtx.fillStyle = '#ff007f';
+          canvasCtx.fillRect(x, el.voiceCanvas.height - barHeight, barWidth - 1, barHeight);
+          x += barWidth;
+        }
+      }
+      drawWave();
 
       state.mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) state.audioChunks.push(e.data);
       };
 
       state.mediaRecorder.onstop = () => {
+        cancelAnimationFrame(voiceAnimFrame);
         stream.getTracks().forEach(t => t.stop());
       };
 
       state.mediaRecorder.start();
       state.recordStartTime = Date.now();
-      el.voiceRecordingUI.style.display = 'flex';
-      el.chatForm.style.display = 'none';
+      el.voiceDock.style.display = 'flex';
+      el.composerForm.style.display = 'none';
 
       state.recordInterval = setInterval(() => {
         const sec = Math.floor((Date.now() - state.recordStartTime) / 1000);
         const m = String(Math.floor(sec / 60)).padStart(2, '0');
         const s = String(sec % 60).padStart(2, '0');
-        el.recordTimer.textContent = `${m}:${s}`;
+        el.voiceTimer.textContent = `${m}:${s}`;
       }, 1000);
 
     } catch (err) {
@@ -723,8 +894,8 @@
       state.mediaRecorder.stop();
     }
     clearInterval(state.recordInterval);
-    el.voiceRecordingUI.style.display = 'none';
-    el.chatForm.style.display = 'flex';
+    el.voiceDock.style.display = 'none';
+    el.composerForm.style.display = 'flex';
     state.audioChunks = [];
   });
 
@@ -733,36 +904,37 @@
       state.mediaRecorder.onstop = () => {
         const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
         const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-        uploadFile(file, true);
+        beamFile(file, true);
         state.audioChunks = [];
       };
       state.mediaRecorder.stop();
     }
     clearInterval(state.recordInterval);
-    el.voiceRecordingUI.style.display = 'none';
-    el.chatForm.style.display = 'flex';
+    el.voiceDock.style.display = 'none';
+    el.composerForm.style.display = 'flex';
   });
 
-  // --- Shared Clipboard ---
-  el.clipboardText.addEventListener('input', () => {
-    el.clipCharCount.textContent = `${el.clipboardText.value.length} characters`;
+  // --- SyncBoard ---
+  el.syncboardContent.addEventListener('input', () => {
+    el.syncCharCount.textContent = `${el.syncboardContent.value.length} characters`;
   });
 
-  el.broadcastClipBtn.addEventListener('click', () => {
-    const val = el.clipboardText.value;
+  el.broadcastSyncBtn.addEventListener('click', () => {
+    const val = el.syncboardContent.value;
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify({ type: 'clipboard_update', content: val }));
+      showToast('⚡ SyncBoard broadcasted');
+      playCyberSound('transmit');
     }
   });
 
-  el.copyClipBtn.addEventListener('click', async () => {
-    const text = el.clipboardText.value;
+  el.copySyncBtn.addEventListener('click', async () => {
+    const text = el.syncboardContent.value;
     if (!text) return;
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        el.clipboardText.select();
+      if (navigator.clipboard) await navigator.clipboard.writeText(text);
+      else {
+        el.syncboardContent.select();
         document.execCommand('copy');
       }
       showToast('📋 Copied to clipboard!');
@@ -771,86 +943,208 @@
     }
   });
 
-  function updateClipboardUI(clip) {
+  function updateSyncUI(clip) {
     state.clipboard = clip;
-    el.clipboardText.value = clip.content || '';
-    el.clipCharCount.textContent = `${(clip.content || '').length} characters`;
-    el.clipboardMeta.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} at ${formatTime(clip.updatedAt)}` : 'Synced across all devices';
+    el.syncboardContent.value = clip.content || '';
+    el.syncCharCount.textContent = `${(clip.content || '').length} characters`;
+    el.syncMeta.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} at ${formatTime(clip.updatedAt)}` : 'Synced across all peers';
   }
 
-  // --- Radar & Peers ---
+  // --- Radar Matrix Visualizer (Canvas Animation) ---
+  let radarAngle = 0;
+  function initRadar() {
+    const canvas = el.radarCanvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function animateRadar() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const maxR = cx - 10;
+
+      // Concentric Rings
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.2)';
+      ctx.lineWidth = 1;
+      for (let r = maxR / 3; r <= maxR; r += maxR / 3) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Crosshairs
+      ctx.beginPath();
+      ctx.moveTo(cx, 10);
+      ctx.lineTo(cx, canvas.height - 10);
+      ctx.moveTo(10, cy);
+      ctx.lineTo(canvas.width - 10, cy);
+      ctx.stroke();
+
+      // Radar Sweep
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(radarAngle);
+      const grad = ctx.createLinearGradient(0, 0, maxR, 0);
+      grad.addColorStop(0, 'rgba(0, 242, 254, 0)');
+      grad.addColorStop(1, 'rgba(0, 242, 254, 0.45)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, maxR, 0, Math.PI / 4);
+      ctx.fill();
+      ctx.restore();
+
+      // Plot Nodes
+      state.peers.forEach((p, idx) => {
+        const angle = (idx / Math.max(1, state.peers.length)) * Math.PI * 2 + 0.5;
+        const dist = (maxR * 0.4) + ((idx % 3) * (maxR * 0.25));
+        const px = cx + Math.cos(angle) * dist;
+        const py = cy + Math.sin(angle) * dist;
+
+        ctx.fillStyle = p.color || '#00f2fe';
+        ctx.shadowColor = p.color || '#00f2fe';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      radarAngle += 0.03;
+      requestAnimationFrame(animateRadar);
+    }
+    animateRadar();
+  }
+
   function renderPeers() {
     el.peerCountBadge.textContent = state.peers.length;
-    el.peerList.innerHTML = state.peers.map(p => {
+    el.nodesList.innerHTML = state.peers.map(p => {
       const isMe = p.id === state.myId;
       return `
-        <div class="peer-item">
-          <div class="peer-meta">
-            <span class="peer-dot" style="background: ${p.color || '#00f2fe'}"></span>
-            <span class="peer-name">${escapeHTML(p.name)}</span>
-            <span class="peer-device-badge">${p.device || 'Device'}</span>
+        <div class="node-row">
+          <div class="node-info">
+            <span class="node-aura" style="background: ${p.color || '#00f2fe'}"></span>
+            <span class="node-title">${escapeHTML(p.name)}</span>
+            <span class="node-badge">${p.device || 'Node'}</span>
           </div>
-          ${isMe ? '<span class="peer-self-tag">YOU</span>' : ''}
+          ${isMe ? '<span class="self-badge">YOU</span>' : ''}
         </div>
       `;
     }).join('');
   }
 
-  function renderLanUrls() {
+  function renderEndpoints() {
     const port = state.port || 4000;
     let html = `
-      <div class="url-item">
+      <div class="endpoint-item">
         <code>http://localhost:${port}</code>
-        <button class="copy-url-btn" data-url="http://localhost:${port}">Copy</button>
+        <button class="copy-endpoint-btn" data-url="http://localhost:${port}">Copy</button>
       </div>
     `;
 
-    let primaryUrl = `http://localhost:${port}`;
+    let primary = `http://localhost:${port}`;
 
     state.localIPs.forEach(net => {
       const url = `http://${net.address}:${port}`;
-      primaryUrl = url;
+      primary = url;
       html += `
-        <div class="url-item">
+        <div class="endpoint-item">
           <code>${url} (${net.interface})</code>
-          <button class="copy-url-btn" data-url="${url}">Copy</button>
+          <button class="copy-endpoint-btn" data-url="${url}">Copy</button>
         </div>
       `;
     });
 
-    el.lanUrlsList.innerHTML = html;
-    el.primaryShareUrl.value = primaryUrl;
-    generateQRCode(primaryUrl);
+    el.endpointsList.innerHTML = html;
+    el.shareUrlInput.value = primary;
+    generateQR(primary);
   }
 
   document.addEventListener('click', (e) => {
-    if (e.target.closest('.copy-url-btn')) {
-      const btn = e.target.closest('.copy-url-btn');
-      const url = btn.dataset.url;
-      navigator.clipboard.writeText(url).then(() => showToast('🔗 LAN URL copied!'));
+    if (e.target.closest('.copy-endpoint-btn')) {
+      const u = e.target.closest('.copy-endpoint-btn').dataset.url;
+      navigator.clipboard.writeText(u).then(() => showToast('🔗 Copied!'));
     }
   });
 
-  el.copyShareUrlBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(el.primaryShareUrl.value).then(() => showToast('🔗 Link copied!'));
+  el.copyShareBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(el.shareUrlInput.value).then(() => showToast('🔗 Link copied!'));
   });
 
-  function generateQRCode(url) {
-    if (window.QRCode && el.qrCanvas) {
-      QRCode.toCanvas(el.qrCanvas, url, {
+  function generateQR(url) {
+    if (window.QRCode && el.qrCodeCanvas) {
+      QRCode.toCanvas(el.qrCodeCanvas, url, {
         width: 220,
         margin: 1,
-        color: { dark: '#090b10', light: '#ffffff' }
-      }, (err) => {
-        if (err) console.error('QR Error:', err);
-      });
+        color: { dark: '#07090e', light: '#ffffff' }
+      }, () => {});
     }
   }
 
-  // --- Modals & Profile ---
+  // --- Modals & Channels ---
+  el.roomSelectorBtn.addEventListener('click', () => el.roomModal.style.display = 'flex');
+  el.closeRoomModal.addEventListener('click', () => el.roomModal.style.display = 'none');
+
+  document.querySelectorAll('.channel-chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      switchRoom(btn.dataset.room);
+      el.roomModal.style.display = 'none';
+    });
+  });
+
+  el.customRoomForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const r = el.newRoomInput.value.trim();
+    if (r) {
+      switchRoom(r);
+      el.newRoomInput.value = '';
+      el.roomModal.style.display = 'none';
+    }
+  });
+
+  function switchRoom(roomId) {
+    if (roomId === state.room) return;
+    state.room = roomId;
+    localStorage.setItem('aether_room', roomId);
+    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      state.ws.send(JSON.stringify({ type: 'join_room', roomId }));
+    }
+  }
+
+  // E2EE Modal
+  el.e2eeBtn.addEventListener('click', () => {
+    el.e2eeSecretInput.value = state.e2eeSecret;
+    el.e2eeModal.style.display = 'flex';
+  });
+
+  el.closeE2eeModal.addEventListener('click', () => el.e2eeModal.style.display = 'none');
+
+  el.e2eeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const sec = el.e2eeSecretInput.value.trim();
+    if (sec) {
+      state.e2eeSecret = sec;
+      localStorage.setItem('aether_secret', sec);
+      state.e2eeKey = await deriveKey(sec);
+      el.e2eeBtn.classList.add('active');
+      showToast('🔒 E2EE Shield Activated');
+    }
+    el.e2eeModal.style.display = 'none';
+  });
+
+  el.disableE2eeBtn.addEventListener('click', () => {
+    state.e2eeSecret = '';
+    state.e2eeKey = null;
+    localStorage.removeItem('aether_secret');
+    el.e2eeBtn.classList.remove('active');
+    showToast('🔓 E2EE Disabled');
+    el.e2eeModal.style.display = 'none';
+  });
+
+  // Profile Modal
   el.profileBtn.addEventListener('click', () => {
-    el.customNameInput.value = state.name;
-    highlightActiveColor(state.color);
+    el.codenameInput.value = state.name;
+    highlightAura(state.color);
     el.profileModal.style.display = 'flex';
   });
 
@@ -858,35 +1152,33 @@
   el.qrModalBtn.addEventListener('click', () => el.qrModal.style.display = 'flex');
   el.closeQrModal.addEventListener('click', () => el.qrModal.style.display = 'none');
 
-  function highlightActiveColor(color) {
-    el.colorPickerGrid.querySelectorAll('.color-swatch').forEach(s => {
-      s.classList.toggle('active', s.dataset.color === color);
+  function highlightAura(col) {
+    el.auraPalette.querySelectorAll('.aura-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.color === col);
     });
   }
 
-  el.colorPickerGrid.addEventListener('click', (e) => {
-    if (e.target.dataset.color) {
-      highlightActiveColor(e.target.dataset.color);
-    }
+  el.auraPalette.addEventListener('click', (e) => {
+    if (e.target.dataset.color) highlightAura(e.target.dataset.color);
   });
 
-  el.randomizeProfileBtn.addEventListener('click', () => {
-    el.customNameInput.value = generateRandomCodename();
-    highlightActiveColor(getRandomColor());
+  el.randomizeCodenameBtn.addEventListener('click', () => {
+    el.codenameInput.value = generateCodename();
+    highlightAura(getRandomAura());
   });
 
   el.profileForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const newName = el.customNameInput.value.trim();
-    const activeSwatch = el.colorPickerGrid.querySelector('.color-swatch.active');
-    const newColor = activeSwatch ? activeSwatch.dataset.color : state.color;
+    const newName = el.codenameInput.value.trim();
+    const activeSwatch = el.auraPalette.querySelector('.aura-swatch.active');
+    const newCol = activeSwatch ? activeSwatch.dataset.color : state.color;
 
     if (newName) {
       state.name = newName;
-      state.color = newColor;
-      localStorage.setItem('ghost_name', state.name);
-      localStorage.setItem('ghost_color', state.color);
-      updateHeaderProfile();
+      state.color = newCol;
+      localStorage.setItem('aether_name', state.name);
+      localStorage.setItem('aether_color', state.color);
+      updateIdentityUI();
 
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         state.ws.send(JSON.stringify({
@@ -896,31 +1188,37 @@
           device: state.device
         }));
       }
-      showToast('Profile updated!');
+      showToast('Identity updated');
     }
     el.profileModal.style.display = 'none';
   });
 
+  // Sound Toggle
   el.soundToggleBtn.addEventListener('click', () => {
     state.soundEnabled = !state.soundEnabled;
-    localStorage.setItem('ghost_sound', state.soundEnabled);
+    localStorage.setItem('aether_sound', state.soundEnabled);
     el.soundToggleBtn.style.opacity = state.soundEnabled ? '1' : '0.4';
-    showToast(state.soundEnabled ? '🔊 Sound FX On' : '🔇 Sound FX Muted');
+    showToast(state.soundEnabled ? '🔊 Audio FX Active' : '🔇 Audio FX Muted');
   });
 
-  el.navTabs.forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  el.navItems.forEach(item => {
+    item.addEventListener('click', () => switchTab(item.dataset.tab));
   });
 
   function escapeHTML(str) {
     if (!str) return '';
-    return str.replace(/[&<>'"]/g, 
-      tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-    );
+    return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
   }
 
-  // --- Start App ---
-  updateHeaderProfile();
-  initWebSocket();
+  // --- Boot Matrix ---
+  (async function init() {
+    updateIdentityUI();
+    if (state.e2eeSecret) {
+      state.e2eeKey = await deriveKey(state.e2eeSecret);
+      el.e2eeBtn.classList.add('active');
+    }
+    initRadar();
+    connectMesh();
+  })();
 
 })();

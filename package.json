@@ -1,14 +1,22 @@
 {
-  "name": "zerxenlan",
-  "version": "1.0.0",
-  "description": "Zero-internet local Wi-Fi anonymous chat, file drop & shared clipboard suite",
+  "name": "aetherlan",
+  "version": "2.0.0",
+  "description": "⚡ Zero-Internet Peer-to-Peer Cyber Mesh, LAN File Dropper & Live Sync Hub",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "express": "^4.19.2",
-    "multer": "^1.4.5-lts.1",
-    "ws": "^8.17.1"
-  }
+  "keywords": [
+    "p2p",
+    "mesh",
+    "lan",
+    "wifi-drop",
+    "zero-dependency",
+    "offline-first",
+    "termux",
+    "android",
+    "websockets"
+  ],
+  "author": "Zerxen-dev",
+  "license": "MIT"
 }
