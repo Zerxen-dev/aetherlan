@@ -1,4 +1,4 @@
-// AetherLAN — Zero-Dependency Mobile-First Local Wi-Fi Mesh
+// AetherLAN — Zero-Dependency Mobile-First Local Wi-Fi Mesh + WebRTC Call Engine
 // MIT License • Authored by Zerxen-dev
 
 const http = require('http');
@@ -177,6 +177,17 @@ function broadcast(data, excludeWs = null) {
   }
 }
 
+function sendToPeerId(targetPeerId, data) {
+  const payload = JSON.stringify(data);
+  for (const [clientWs, peerData] of peers) {
+    if (peerData.id === targetPeerId) {
+      clientWs.send(payload);
+      return true;
+    }
+  }
+  return false;
+}
+
 function getPeerList() {
   return Array.from(peers.values()).map(p => ({
     id: p.id,
@@ -341,7 +352,7 @@ const server = http.createServer((req, res) => {
 });
 
 // ============================================================================
-// WEBSOCKET UPGRADE
+// WEBSOCKET UPGRADE & WEBRTC SIGNALING
 // ============================================================================
 server.on('upgrade', (req, socket) => {
   if (req.headers['upgrade'] !== 'websocket' || !req.headers['sec-websocket-key']) {
@@ -442,6 +453,80 @@ server.on('upgrade', (req, socket) => {
             updatedAt: Date.now()
           };
           broadcast({ type: 'clipboard_updated', clipboard: sharedClipboard });
+          break;
+        }
+
+        // ====================================================================
+        // WEBRTC SIGNALING ROUTING
+        // ====================================================================
+        case 'call_initiate': {
+          // Broadcast incoming call to other peers
+          broadcast({
+            type: 'incoming_call',
+            callerId: peerData.id,
+            callerName: peerData.name,
+            callerColor: peerData.color,
+            callMode: data.callMode || 'audio'
+          }, ws);
+          break;
+        }
+
+        case 'call_accept': {
+          // Target accepted, relay to caller
+          sendToPeerId(data.callerId, {
+            type: 'call_accepted',
+            peerId: peerData.id,
+            peerName: peerData.name,
+            peerColor: peerData.color
+          });
+          break;
+        }
+
+        case 'call_decline': {
+          if (data.callerId) {
+            sendToPeerId(data.callerId, {
+              type: 'call_declined',
+              peerId: peerData.id,
+              peerName: peerData.name
+            });
+          }
+          break;
+        }
+
+        case 'webrtc_offer': {
+          sendToPeerId(data.targetId, {
+            type: 'webrtc_offer',
+            fromId: peerData.id,
+            fromName: peerData.name,
+            offer: data.offer,
+            callMode: data.callMode
+          });
+          break;
+        }
+
+        case 'webrtc_answer': {
+          sendToPeerId(data.targetId, {
+            type: 'webrtc_answer',
+            fromId: peerData.id,
+            answer: data.answer
+          });
+          break;
+        }
+
+        case 'webrtc_ice': {
+          sendToPeerId(data.targetId, {
+            type: 'webrtc_ice',
+            fromId: peerData.id,
+            candidate: data.candidate
+          });
+          break;
+        }
+
+        case 'call_end': {
+          broadcast({
+            type: 'call_ended',
+            fromId: peerData.id
+          }, ws);
           break;
         }
       }

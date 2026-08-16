@@ -1,4 +1,4 @@
-// AetherLAN — Mobile-First Matrix Client with Onboarding & Persistence
+// AetherLAN — Mobile-First Matrix Client + WebRTC Call Engine
 (function() {
   'use strict';
 
@@ -34,7 +34,24 @@
     recordStart: 0,
     typingTimer: null,
     isTyping: false,
-    perms: { mic: false, cam: false, notif: false }
+    perms: { mic: false, cam: false, notif: false },
+    // WebRTC Call State
+    call: {
+      active: false,
+      peerId: null,
+      peerName: 'Peer',
+      peerColor: '#0a84ff',
+      mode: 'audio', // 'audio' | 'video' | 'screen'
+      localStream: null,
+      remoteStream: null,
+      pc: null,
+      timerInterval: null,
+      startTime: 0,
+      micMuted: false,
+      camOff: false,
+      isScreenSharing: false,
+      facingMode: 'user' // 'user' or 'environment'
+    }
   };
 
   // DOM Elements
@@ -94,6 +111,30 @@
     welcomeAvatarCircle: document.getElementById('welcomeAvatarCircle'),
     welcomeColorRow: document.getElementById('welcomeColorRow'),
     welcomeRandomBtn: document.getElementById('welcomeRandomBtn'),
+    // Calls & Media
+    startCallBtn: document.getElementById('startCallBtn'),
+    startCallSheet: document.getElementById('startCallSheet'),
+    closeStartCallBackdrop: document.getElementById('closeStartCallBackdrop'),
+    callOverlay: document.getElementById('callOverlay'),
+    remoteVideo: document.getElementById('remoteVideo'),
+    remoteAudio: document.getElementById('remoteAudio'),
+    localVideo: document.getElementById('localVideo'),
+    audioCallDisplay: document.getElementById('audioCallDisplay'),
+    callPeerAvatar: document.getElementById('callPeerAvatar'),
+    callPeerName: document.getElementById('callPeerName'),
+    callTimer: document.getElementById('callTimer'),
+    toggleMicBtn: document.getElementById('toggleMicBtn'),
+    toggleCamBtn: document.getElementById('toggleCamBtn'),
+    toggleScreenBtn: document.getElementById('toggleScreenBtn'),
+    flipCamBtn: document.getElementById('flipCamBtn'),
+    endCallBtn: document.getElementById('endCallBtn'),
+    // Incoming Call Modal
+    incomingCallSheet: document.getElementById('incomingCallSheet'),
+    incomingAvatar: document.getElementById('incomingAvatar'),
+    incomingCallerName: document.getElementById('incomingCallerName'),
+    incomingCallType: document.getElementById('incomingCallType'),
+    acceptCallBtn: document.getElementById('acceptCallBtn'),
+    declineCallBtn: document.getElementById('declineCallBtn'),
     // Devices Sheet
     devicesSheet: document.getElementById('devicesSheet'),
     closeDevicesBackdrop: document.getElementById('closeDevicesBackdrop'),
@@ -111,7 +152,7 @@
     closeLightboxBtn: document.getElementById('closeLightboxBtn'),
     lightboxImg: document.getElementById('lightboxImg'),
     lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
-    // Sheets
+    // Profile & QR Sheets
     profileSheet: document.getElementById('profileSheet'),
     closeProfileBackdrop: document.getElementById('closeProfileBackdrop'),
     profileForm: document.getElementById('profileForm'),
@@ -181,7 +222,7 @@
     });
   }
 
-  // --- Onboarding / Welcome Screen Logic ---
+  // --- Onboarding Logic ---
   let welcomeSelectedColor = state.color || '#0a84ff';
 
   function initOnboarding() {
@@ -457,6 +498,46 @@
       case 'clipboard_updated': {
         updateClipboardUI(data.clipboard);
         showToast('📋 Clipboard updated');
+        break;
+      }
+
+      // WebRTC Call Signaling Messages
+      case 'incoming_call': {
+        if (!state.call.active) {
+          showIncomingCallModal(data);
+        }
+        break;
+      }
+
+      case 'call_accepted': {
+        handleCallAccepted(data);
+        break;
+      }
+
+      case 'call_declined': {
+        showToast(`${data.peerName || 'Peer'} declined the call`);
+        endCall(false);
+        break;
+      }
+
+      case 'webrtc_offer': {
+        handleWebRTCOffer(data);
+        break;
+      }
+
+      case 'webrtc_answer': {
+        handleWebRTCAnswer(data);
+        break;
+      }
+
+      case 'webrtc_ice': {
+        handleWebRTCIce(data);
+        break;
+      }
+
+      case 'call_ended': {
+        showToast('Call ended by peer');
+        endCall(false);
         break;
       }
     }
@@ -857,6 +938,382 @@
     el.clipText.value = clip.content || '';
     el.clipCharCount.textContent = `${(clip.content || '').length} characters`;
     el.clipUpdated.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} (${formatTime(clip.updatedAt)})` : 'Live sync across all devices';
+  }
+
+  // ==========================================================================
+  // WEBRTC CALL ENGINE (VOICE, VIDEO, SCREENSHARE)
+  // ==========================================================================
+  const rtcConfig = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  };
+
+  el.startCallBtn.addEventListener('click', () => {
+    el.startCallSheet.style.display = 'flex';
+    haptic();
+  });
+  el.closeStartCallBackdrop.addEventListener('click', () => el.startCallSheet.style.display = 'none');
+
+  document.querySelectorAll('.call-type-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const mode = card.dataset.calltype;
+      el.startCallSheet.style.display = 'none';
+      initiateCall(mode);
+    });
+  });
+
+  async function initiateCall(mode) {
+    try {
+      state.call.mode = mode;
+      await obtainLocalMedia(mode);
+
+      state.call.active = true;
+      state.call.peerName = 'Calling Room...';
+      state.call.peerColor = '#0a84ff';
+
+      showCallOverlay();
+
+      // Broadcast call initiation over WebSocket
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'call_initiate',
+          callMode: mode
+        }));
+      }
+
+      showToast(`📞 Calling on Wi-Fi (${mode})...`);
+      haptic();
+    } catch (err) {
+      showToast('Could not access media: ' + err.message);
+      endCall(false);
+    }
+  }
+
+  async function obtainLocalMedia(mode) {
+    let stream;
+    if (mode === 'audio') {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } else if (mode === 'video') {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { facingMode: state.call.facingMode }
+      });
+    } else if (mode === 'screen') {
+      if (navigator.mediaDevices.getDisplayMedia) {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      }
+    }
+    state.call.localStream = stream;
+
+    if (mode === 'video' || mode === 'screen') {
+      el.localVideo.srcObject = stream;
+      el.localVideo.style.display = 'block';
+      el.flipCamBtn.style.display = mode === 'video' ? 'flex' : 'none';
+    } else {
+      el.localVideo.style.display = 'none';
+      el.flipCamBtn.style.display = 'none';
+    }
+
+    return stream;
+  }
+
+  // Incoming Call Handler
+  let pendingIncomingCall = null;
+  function showIncomingCallModal(data) {
+    pendingIncomingCall = data;
+    el.incomingCallerName.textContent = data.callerName || 'Peer';
+    el.incomingAvatar.textContent = (data.callerName || '?').charAt(0).toUpperCase();
+    el.incomingAvatar.style.backgroundColor = data.callerColor || '#0a84ff';
+    el.incomingCallType.textContent = `Incoming ${data.callMode.toUpperCase()} Call...`;
+    el.incomingCallSheet.style.display = 'flex';
+    haptic();
+  }
+
+  el.declineCallBtn.addEventListener('click', () => {
+    if (pendingIncomingCall && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'call_decline',
+        callerId: pendingIncomingCall.callerId
+      }));
+    }
+    el.incomingCallSheet.style.display = 'none';
+    pendingIncomingCall = null;
+  });
+
+  el.acceptCallBtn.addEventListener('click', async () => {
+    if (!pendingIncomingCall) return;
+    const callData = pendingIncomingCall;
+    el.incomingCallSheet.style.display = 'none';
+
+    try {
+      state.call.mode = callData.callMode || 'audio';
+      state.call.peerId = callData.callerId;
+      state.call.peerName = callData.callerName;
+      state.call.peerColor = callData.callerColor;
+
+      await obtainLocalMedia(state.call.mode);
+      state.call.active = true;
+      showCallOverlay();
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'call_accept',
+          callerId: callData.callerId
+        }));
+      }
+
+      setupPeerConnection(callData.callerId, false);
+      pendingIncomingCall = null;
+    } catch (err) {
+      showToast('Failed to accept call: ' + err.message);
+      endCall(false);
+    }
+  });
+
+  async function handleCallAccepted(data) {
+    state.call.peerId = data.peerId;
+    state.call.peerName = data.peerName;
+    state.call.peerColor = data.peerColor;
+    updateCallOverlayUI();
+    setupPeerConnection(data.peerId, true);
+  }
+
+  function setupPeerConnection(targetPeerId, isCaller) {
+    if (state.call.pc) {
+      state.call.pc.close();
+    }
+
+    const pc = new RTCPeerConnection(rtcConfig);
+    state.call.pc = pc;
+
+    // Add local tracks
+    if (state.call.localStream) {
+      state.call.localStream.getTracks().forEach(track => {
+        pc.addTrack(track, state.call.localStream);
+      });
+    }
+
+    // Handle remote track
+    pc.ontrack = (event) => {
+      state.call.remoteStream = event.streams[0];
+      if (event.track.kind === 'video') {
+        el.remoteVideo.srcObject = event.streams[0];
+        el.remoteVideo.style.display = 'block';
+        el.audioCallDisplay.style.display = 'none';
+      } else if (event.track.kind === 'audio') {
+        el.remoteAudio.srcObject = event.streams[0];
+      }
+    };
+
+    // ICE Candidate
+    pc.onicecandidate = (event) => {
+      if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'webrtc_ice',
+          targetId: targetPeerId,
+          candidate: event.candidate
+        }));
+      }
+    };
+
+    if (isCaller) {
+      pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+        .then(offer => pc.setLocalDescription(offer))
+        .then(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'webrtc_offer',
+              targetId: targetPeerId,
+              offer: pc.localDescription,
+              callMode: state.call.mode
+            }));
+          }
+        })
+        .catch(err => console.error('Offer error:', err));
+    }
+  }
+
+  async function handleWebRTCOffer(data) {
+    if (!state.call.pc) {
+      setupPeerConnection(data.fromId, false);
+    }
+    const pc = state.call.pc;
+    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'webrtc_answer',
+        targetId: data.fromId,
+        answer: answer
+      }));
+    }
+  }
+
+  async function handleWebRTCAnswer(data) {
+    if (state.call.pc) {
+      await state.call.pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    }
+  }
+
+  async function handleWebRTCIce(data) {
+    if (state.call.pc && data.candidate) {
+      try {
+        await state.call.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {}
+    }
+  }
+
+  function showCallOverlay() {
+    updateCallOverlayUI();
+    el.callOverlay.style.display = 'flex';
+    startCallTimer();
+  }
+
+  function updateCallOverlayUI() {
+    el.callPeerName.textContent = state.call.peerName;
+    el.callPeerAvatar.textContent = (state.call.peerName || '?').charAt(0).toUpperCase();
+    el.callPeerAvatar.style.backgroundColor = state.call.peerColor || '#0a84ff';
+
+    if (state.call.mode === 'audio') {
+      el.remoteVideo.style.display = 'none';
+      el.audioCallDisplay.style.display = 'flex';
+    } else {
+      el.remoteVideo.style.display = 'block';
+      el.audioCallDisplay.style.display = 'none';
+    }
+  }
+
+  function startCallTimer() {
+    state.call.startTime = Date.now();
+    clearInterval(state.call.timerInterval);
+    state.call.timerInterval = setInterval(() => {
+      const sec = Math.floor((Date.now() - state.call.startTime) / 1000);
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      el.callTimer.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  // Call Controls: Mute, Cam, Screen, Flip, Hang up
+  el.toggleMicBtn.addEventListener('click', () => {
+    if (state.call.localStream) {
+      const audioTrack = state.call.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        state.call.micMuted = !audioTrack.enabled;
+        el.toggleMicBtn.classList.toggle('muted', state.call.micMuted);
+        showToast(state.call.micMuted ? 'Mic Muted' : 'Mic Unmuted');
+        haptic();
+      }
+    }
+  });
+
+  el.toggleCamBtn.addEventListener('click', async () => {
+    if (!state.call.localStream) return;
+    const videoTrack = state.call.localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      state.call.camOff = !videoTrack.enabled;
+      el.toggleCamBtn.classList.toggle('muted', state.call.camOff);
+      el.localVideo.style.display = state.call.camOff ? 'none' : 'block';
+    } else {
+      // Add video track dynamically
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const newTrack = camStream.getVideoTracks()[0];
+        state.call.localStream.addTrack(newTrack);
+        if (state.call.pc) {
+          state.call.pc.addTrack(newTrack, state.call.localStream);
+        }
+        el.localVideo.srcObject = state.call.localStream;
+        el.localVideo.style.display = 'block';
+        el.toggleCamBtn.classList.add('active');
+      } catch (e) {}
+    }
+    haptic();
+  });
+
+  el.toggleScreenBtn.addEventListener('click', async () => {
+    if (navigator.mediaDevices.getDisplayMedia) {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        if (state.call.pc) {
+          const sender = state.call.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender) sender.replaceTrack(screenTrack);
+          else state.call.pc.addTrack(screenTrack, screenStream);
+        }
+
+        el.localVideo.srcObject = screenStream;
+        el.localVideo.style.display = 'block';
+        state.call.isScreenSharing = true;
+        el.toggleScreenBtn.classList.add('active');
+        showToast('🖥️ Screen sharing active');
+
+        screenTrack.onended = () => {
+          state.call.isScreenSharing = false;
+          el.toggleScreenBtn.classList.remove('active');
+        };
+        haptic();
+      } catch (err) {}
+    }
+  });
+
+  el.flipCamBtn.addEventListener('click', async () => {
+    state.call.facingMode = state.call.facingMode === 'user' ? 'environment' : 'user';
+    if (state.call.localStream) {
+      const oldTrack = state.call.localStream.getVideoTracks()[0];
+      if (oldTrack) oldTrack.stop();
+
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: state.call.facingMode }
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      state.call.localStream.removeTrack(oldTrack);
+      state.call.localStream.addTrack(newTrack);
+
+      if (state.call.pc) {
+        const sender = state.call.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack);
+      }
+      el.localVideo.srcObject = state.call.localStream;
+      haptic();
+    }
+  });
+
+  el.endCallBtn.addEventListener('click', () => {
+    endCall(true);
+  });
+
+  function endCall(notifyServer = true) {
+    if (notifyServer && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'call_end' }));
+    }
+
+    if (state.call.localStream) {
+      state.call.localStream.getTracks().forEach(t => t.stop());
+      state.call.localStream = null;
+    }
+
+    if (state.call.pc) {
+      state.call.pc.close();
+      state.call.pc = null;
+    }
+
+    clearInterval(state.call.timerInterval);
+    el.callOverlay.style.display = 'none';
+    el.localVideo.srcObject = null;
+    el.remoteVideo.srcObject = null;
+    el.remoteAudio.srcObject = null;
+    state.call.active = false;
+    haptic();
   }
 
   // --- Connected Devices Sheet ---

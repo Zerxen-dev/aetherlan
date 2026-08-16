@@ -1240,3 +1240,288 @@ html, body {
   gap: 10px;
   margin-top: 18px;
 }
+
+/* ==========================================================================
+   WEBRTC CALLS, VIDEO & SCREENSHARE
+   ========================================================================== */
+.call-trigger-btn {
+  color: var(--brand-green);
+  border-color: rgba(48, 209, 88, 0.3);
+}
+
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.call-media-container {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #07090e;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.local-video-pip {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 110px;
+  height: 155px;
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  object-fit: cover;
+  z-index: 10;
+  background: #000;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+
+.audio-call-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.call-avatar-ring {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-pulse-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(10, 132, 255, 0.2);
+  animation: wavePulse 1.8s infinite ease-out;
+}
+
+@keyframes wavePulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.call-avatar-initial {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: 2.4rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 24px rgba(10, 132, 255, 0.4);
+  text-transform: uppercase;
+}
+
+.call-peer-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.call-timer {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.call-quality-badge {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--brand-green);
+  background: rgba(48, 209, 88, 0.15);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+}
+
+.call-controls-bar {
+  padding: 20px 24px calc(24px + var(--safe-bottom));
+  background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 20;
+}
+
+.call-ctrl-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.15s;
+  backdrop-filter: blur(8px);
+}
+
+.call-ctrl-btn:active {
+  transform: scale(0.92);
+}
+
+.call-ctrl-btn.active {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.call-ctrl-btn.muted {
+  background: rgba(255, 55, 95, 0.3);
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.call-ctrl-btn.hangup {
+  background: var(--brand-red);
+  color: #fff;
+  border: none;
+  width: 56px;
+  height: 56px;
+  box-shadow: 0 4px 16px rgba(255, 55, 95, 0.4);
+}
+
+/* Incoming Call Modal */
+.incoming-ring-avatar {
+  margin: 10px auto;
+  display: flex;
+  justify-content: center;
+}
+
+.incoming-avatar-circle {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(10, 132, 255, 0.5);
+  animation: beacon-pulse 1.2s infinite;
+}
+
+.incoming-caller-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.incoming-call-type {
+  font-size: 0.82rem;
+  color: var(--brand-green);
+  margin-bottom: 20px;
+}
+
+.incoming-actions {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-bottom: 10px;
+}
+
+.call-action-circle {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.15s;
+}
+
+.call-action-circle:active {
+  transform: scale(0.92);
+}
+
+.call-action-circle.decline {
+  background: var(--brand-red);
+  box-shadow: 0 4px 16px rgba(255, 55, 95, 0.4);
+}
+
+.call-action-circle.accept {
+  background: var(--brand-green);
+  box-shadow: 0 4px 16px rgba(48, 209, 88, 0.4);
+}
+
+/* Call Mode Picker Grid */
+.call-types-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.call-type-card {
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: 0.15s;
+  color: var(--text-primary);
+}
+
+.call-type-card:active {
+  transform: scale(0.95);
+  border-color: var(--brand-blue);
+}
+
+.call-type-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-type-icon.voice { background: rgba(48, 209, 88, 0.15); color: var(--brand-green); }
+.call-type-icon.video { background: rgba(10, 132, 255, 0.15); color: var(--brand-blue); }
+.call-type-icon.screen { background: rgba(255, 214, 10, 0.15); color: var(--brand-amber); }
+
+.call-type-card strong {
+  font-size: 0.85rem;
+}
+
+.call-type-card span {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
