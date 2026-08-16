@@ -3,36 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0a0d14">
+  <meta name="theme-color" content="#07090e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AetherLAN</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="mobile-app">
     
-    <!-- Mobile App Header -->
+    <!-- Mobile App Top Bar -->
     <header class="app-bar">
       <button id="profileBtn" class="avatar-btn" title="Your Profile" aria-label="Profile">
         <span class="avatar-circle" id="userAvatar">G</span>
       </button>
       
-      <div class="app-title-group" id="headerTitleGroup">
+      <div class="app-title-group" id="networkInfoBtn" title="View Connected Devices">
         <h1 class="app-title">AetherLAN</h1>
         <div class="network-badge">
           <span class="pulse-dot"></span>
-          <span id="onlineCountText">Wi-Fi Online</span>
+          <span id="onlineCountText">1 Device Online</span>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </div>
       </div>
 
       <div class="header-actions">
+        <button id="searchToggleBtn" class="circle-btn" title="Search Messages" aria-label="Search">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
         <button id="qrBtn" class="circle-btn" title="Share QR Code" aria-label="Share QR">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
             <rect x="14" y="14" width="7" height="7"></rect>
@@ -41,6 +48,16 @@
         </button>
       </div>
     </header>
+
+    <!-- Search Overlay Bar -->
+    <div class="search-bar-drawer" id="searchDrawer" style="display:none;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search chat messages & files...">
+      <button type="button" id="closeSearchBtn" class="clear-search-btn">&times;</button>
+    </div>
 
     <!-- Top Segmented Tabs -->
     <nav class="segment-tabs">
@@ -60,7 +77,7 @@
     <!-- App Views Container -->
     <main class="views-wrapper">
       
-      <!-- 1. CHAT VIEW (Mobile WhatsApp/Telegram Style) -->
+      <!-- 1. CHAT VIEW -->
       <section id="chatView" class="view active">
         <div class="chat-timeline" id="chatTimeline">
           <div class="date-chip"><span>DIRECT WI-FI • ZERO CLOUD</span></div>
@@ -72,12 +89,20 @@
 
         <!-- Mobile Input Dock -->
         <footer class="input-dock">
-          <input type="file" id="fileAttachmentInput" class="hidden-input">
+          <input type="file" id="fileAttachmentInput" class="hidden-input" multiple>
+          <input type="file" id="cameraInput" class="hidden-input" accept="image/*" capture="environment">
           
-          <button type="button" id="attachBtn" class="dock-btn attach" title="Attach file or photo">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="button" id="attachBtn" class="dock-btn" title="Attach Files">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
+
+          <button type="button" id="cameraBtn" class="dock-btn" title="Take Photo">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
             </svg>
           </button>
 
@@ -117,20 +142,20 @@
         <div class="files-container">
           <div class="upload-banner" id="uploadBanner">
             <div class="upload-icon-circle">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
               </svg>
             </div>
             <h3>Drop Files Here</h3>
-            <p>Send photos, videos, APKs, or documents directly to any phone or laptop on your Wi-Fi.</p>
+            <p>Beam photos, videos, APKs, or code directly to any phone or laptop on your Wi-Fi.</p>
             <button type="button" id="selectFilesBtn" class="pill-btn primary">Choose Files</button>
           </div>
 
           <div class="upload-progress-box" id="uploadProgressBox" style="display:none;">
             <div class="progress-meta">
-              <span id="uploadFileName">Sending...</span>
+              <span id="uploadFileName">Sending file...</span>
               <span id="uploadPercentage">0%</span>
             </div>
             <div class="progress-track">
@@ -149,7 +174,7 @@
         </div>
       </section>
 
-      <!-- 3. CLIPBOARD VIEW (Instant Synced Board) -->
+      <!-- 3. CLIPBOARD VIEW (Universal Live Clipboard) -->
       <section id="clipView" class="view">
         <div class="clip-container">
           <div class="clip-card">
@@ -158,15 +183,18 @@
                 <h3>Universal Clipboard</h3>
                 <p class="clip-sub" id="clipUpdated">Live sync across all devices</p>
               </div>
-              <button type="button" id="copyClipBtn" class="pill-btn primary small">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                Copy
-              </button>
+              <div class="clip-actions-row">
+                <button type="button" id="clearClipBtn" class="pill-btn secondary small">Clear</button>
+                <button type="button" id="copyClipBtn" class="pill-btn primary small">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
             </div>
-            <textarea id="clipText" placeholder="Paste or type text, URLs, or notes here... Everyone on Wi-Fi sees it instantly."></textarea>
+            <textarea id="clipText" placeholder="Paste or type text, code, passwords, or links here... Updates stream in real-time."></textarea>
             <div class="clip-footer">
               <span id="clipCharCount">0 characters</span>
               <button type="button" id="syncClipBtn" class="pill-btn secondary small">Sync Now</button>
@@ -176,6 +204,31 @@
       </section>
 
     </main>
+
+    <!-- Connected Devices Sheet -->
+    <div class="bottom-sheet" id="devicesSheet" style="display:none;">
+      <div class="sheet-backdrop" id="closeDevicesBackdrop"></div>
+      <div class="sheet-content">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">Connected Devices</h3>
+        <p class="sheet-sub">Devices currently active on this local Wi-Fi room:</p>
+        <div class="devices-list" id="devicesList">
+          <!-- Dynamically populated -->
+        </div>
+        <div class="sheet-actions" style="margin-top: 14px;">
+          <button type="button" id="exportChatBtn" class="pill-btn secondary small">Export Chat Log</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Lightbox Modal -->
+    <div class="lightbox-overlay" id="lightboxOverlay" style="display:none;">
+      <button class="close-lightbox-btn" id="closeLightboxBtn">&times;</button>
+      <div class="lightbox-media-wrap">
+        <img id="lightboxImg" src="" alt="Fullscreen image">
+      </div>
+      <a id="lightboxDownloadBtn" href="#" download class="pill-btn primary small lightbox-dl">Download Full Res</a>
+    </div>
 
     <!-- Profile Edit Sheet Modal -->
     <div class="bottom-sheet" id="profileSheet" style="display:none;">
@@ -213,8 +266,8 @@
         <div class="sheet-handle"></div>
         <h3 class="sheet-title">Connect Other Devices</h3>
         <p class="sheet-sub">Scan with phone camera or open link in browser on same Wi-Fi:</p>
-        <div class="qr-canvas-wrap">
-          <canvas id="qrCanvas" width="220" height="220"></canvas>
+        <div class="qr-canvas-wrap" id="qrCodeContainer">
+          <!-- Offline QR Generated Here -->
         </div>
         <div class="url-copy-box">
           <input type="text" id="shareUrl" class="text-field readonly" readonly>
@@ -227,7 +280,7 @@
     <div class="toast-wrapper" id="toastWrapper"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// AetherLAN — Clean Mobile-First Matrix
+// AetherLAN — Mobile-First Matrix Client
 (function() {
   'use strict';
 
@@ -9,6 +9,7 @@
     color: localStorage.getItem('aether_color') || '#0a84ff',
     activeTab: 'chatView',
     unreadCount: 0,
+    searchQuery: '',
     peers: [],
     messages: [],
     files: [],
@@ -27,7 +28,12 @@
   const el = {
     profileBtn: document.getElementById('profileBtn'),
     userAvatar: document.getElementById('userAvatar'),
+    networkInfoBtn: document.getElementById('networkInfoBtn'),
     onlineCountText: document.getElementById('onlineCountText'),
+    searchToggleBtn: document.getElementById('searchToggleBtn'),
+    searchDrawer: document.getElementById('searchDrawer'),
+    searchInput: document.getElementById('searchInput'),
+    closeSearchBtn: document.getElementById('closeSearchBtn'),
     qrBtn: document.getElementById('qrBtn'),
     tabBtns: document.querySelectorAll('.tab-btn'),
     views: document.querySelectorAll('.view'),
@@ -38,7 +44,9 @@
     typingStatus: document.getElementById('typingStatus'),
     typingName: document.getElementById('typingName'),
     attachBtn: document.getElementById('attachBtn'),
+    cameraBtn: document.getElementById('cameraBtn'),
     fileAttachmentInput: document.getElementById('fileAttachmentInput'),
+    cameraInput: document.getElementById('cameraInput'),
     msgInput: document.getElementById('msgInput'),
     voiceBtn: document.getElementById('voiceBtn'),
     sendBtn: document.getElementById('sendBtn'),
@@ -59,8 +67,19 @@
     clipText: document.getElementById('clipText'),
     clipUpdated: document.getElementById('clipUpdated'),
     copyClipBtn: document.getElementById('copyClipBtn'),
+    clearClipBtn: document.getElementById('clearClipBtn'),
     syncClipBtn: document.getElementById('syncClipBtn'),
     clipCharCount: document.getElementById('clipCharCount'),
+    // Devices Sheet
+    devicesSheet: document.getElementById('devicesSheet'),
+    closeDevicesBackdrop: document.getElementById('closeDevicesBackdrop'),
+    devicesList: document.getElementById('devicesList'),
+    exportChatBtn: document.getElementById('exportChatBtn'),
+    // Lightbox
+    lightboxOverlay: document.getElementById('lightboxOverlay'),
+    closeLightboxBtn: document.getElementById('closeLightboxBtn'),
+    lightboxImg: document.getElementById('lightboxImg'),
+    lightboxDownloadBtn: document.getElementById('lightboxDownloadBtn'),
     // Sheets
     profileSheet: document.getElementById('profileSheet'),
     closeProfileBackdrop: document.getElementById('closeProfileBackdrop'),
@@ -70,7 +89,7 @@
     randomizeNameBtn: document.getElementById('randomizeNameBtn'),
     qrSheet: document.getElementById('qrSheet'),
     closeQrBackdrop: document.getElementById('closeQrBackdrop'),
-    qrCanvas: document.getElementById('qrCanvas'),
+    qrCodeContainer: document.getElementById('qrCodeContainer'),
     shareUrl: document.getElementById('shareUrl'),
     copyShareUrlBtn: document.getElementById('copyShareUrlBtn'),
     toastWrapper: document.getElementById('toastWrapper')
@@ -78,7 +97,7 @@
 
   // Utilities
   function generateName() {
-    const names = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo'];
+    const names = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo', 'Phoenix', 'Kai'];
     return names[Math.floor(Math.random() * names.length)] + '_' + Math.floor(10 + Math.random() * 90);
   }
 
@@ -179,11 +198,15 @@
       case 'peer_updated': {
         state.peers = data.peers;
         updatePeersCount();
+        renderDevicesList();
         break;
       }
 
       case 'new_message': {
-        appendMessage(data.message);
+        state.messages.push(data.message);
+        if (matchesSearch(data.message)) {
+          appendMessage(data.message);
+        }
         if (state.activeTab !== 'chatView') {
           state.unreadCount++;
           el.chatBadge.textContent = state.unreadCount;
@@ -222,10 +245,44 @@
     el.onlineCountText.textContent = count === 1 ? '1 Device Online' : `${count} Devices Online`;
   }
 
+  // --- Search & Filter ---
+  function matchesSearch(msg) {
+    if (!state.searchQuery) return true;
+    const q = state.searchQuery.toLowerCase();
+    if (msg.type === 'text' && msg.text && msg.text.toLowerCase().includes(q)) return true;
+    if (msg.file && msg.file.originalName && msg.file.originalName.toLowerCase().includes(q)) return true;
+    if (msg.senderName && msg.senderName.toLowerCase().includes(q)) return true;
+    return false;
+  }
+
+  el.searchToggleBtn.addEventListener('click', () => {
+    const isVisible = el.searchDrawer.style.display === 'flex';
+    el.searchDrawer.style.display = isVisible ? 'none' : 'flex';
+    if (!isVisible) el.searchInput.focus();
+    else {
+      state.searchQuery = '';
+      el.searchInput.value = '';
+      renderAllMessages();
+    }
+  });
+
+  el.closeSearchBtn.addEventListener('click', () => {
+    el.searchDrawer.style.display = 'none';
+    state.searchQuery = '';
+    el.searchInput.value = '';
+    renderAllMessages();
+  });
+
+  el.searchInput.addEventListener('input', () => {
+    state.searchQuery = el.searchInput.value.trim();
+    renderAllMessages();
+  });
+
   // --- Chat Stream ---
   function renderAllMessages() {
     el.chatTimeline.innerHTML = `<div class="date-chip"><span>DIRECT WI-FI • ZERO CLOUD</span></div>`;
-    state.messages.forEach(m => appendMessage(m, false));
+    const filtered = state.messages.filter(matchesSearch);
+    filtered.forEach(m => appendMessage(m, false));
     scrollToBottom();
   }
 
@@ -237,23 +294,31 @@
     let body = '';
 
     if (msg.type === 'text') {
-      body = escapeHTML(msg.text);
+      body = formatMessageText(escapeHTML(msg.text));
     } else if (msg.type === 'file') {
-      body = `
-        <div class="file-card-chat">
-          <div class="file-icon-box">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
+      const isImg = msg.file.mimeType && msg.file.mimeType.startsWith('image/');
+      if (isImg) {
+        body = `
+          <img src="${msg.file.url}" class="chat-img-preview" alt="${escapeHTML(msg.file.originalName)}" data-full="${msg.file.url}" data-name="${escapeHTML(msg.file.originalName)}">
+          <div class="file-size-text" style="margin-top:2px;">${formatBytes(msg.file.size)}</div>
+        `;
+      } else {
+        body = `
+          <div class="file-card-chat">
+            <div class="file-icon-box">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </div>
+            <div class="file-details">
+              <div class="file-name-text">${escapeHTML(msg.file.originalName)}</div>
+              <div class="file-size-text">${formatBytes(msg.file.size)}</div>
+            </div>
+            <a href="${msg.file.url}?download=1" download="${escapeHTML(msg.file.originalName)}" class="file-dl-btn" target="_blank">Get</a>
           </div>
-          <div class="file-details">
-            <div class="file-name-text">${escapeHTML(msg.file.originalName)}</div>
-            <div class="file-size-text">${formatBytes(msg.file.size)}</div>
-          </div>
-          <a href="${msg.file.url}?download=1" download="${escapeHTML(msg.file.originalName)}" class="file-dl-btn" target="_blank">Get</a>
-        </div>
-      `;
+        `;
+      }
     } else if (msg.type === 'voice') {
       body = `
         <div class="voice-bubble-player">
@@ -286,6 +351,29 @@
     el.chatTimeline.appendChild(row);
     if (shouldScroll) scrollToBottom();
   }
+
+  function formatMessageText(text) {
+    // URL links
+    return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color:inherit; text-decoration:underline;">$1</a>');
+  }
+
+  // --- Lightbox & Image Viewer ---
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.chat-img-preview')) {
+      const img = e.target.closest('.chat-img-preview');
+      el.lightboxImg.src = img.dataset.full;
+      el.lightboxDownloadBtn.href = img.dataset.full + '?download=1';
+      el.lightboxDownloadBtn.setAttribute('download', img.dataset.name);
+      el.lightboxOverlay.style.display = 'flex';
+      haptic();
+      return;
+    }
+  });
+
+  el.closeLightboxBtn.addEventListener('click', () => el.lightboxOverlay.style.display = 'none');
+  el.lightboxOverlay.addEventListener('click', (e) => {
+    if (e.target === el.lightboxOverlay) el.lightboxOverlay.style.display = 'none';
+  });
 
   // --- Voice Player ---
   let activeAudio = null;
@@ -361,14 +449,22 @@
     haptic();
   }
 
-  // --- File Upload ---
+  // --- File Upload & Camera ---
   el.attachBtn.addEventListener('click', () => el.fileAttachmentInput.click());
+  el.cameraBtn.addEventListener('click', () => el.cameraInput.click());
   el.selectFilesBtn.addEventListener('click', () => el.fileAttachmentInput.click());
 
   el.fileAttachmentInput.addEventListener('change', () => {
     if (el.fileAttachmentInput.files.length > 0) {
-      upload(el.fileAttachmentInput.files[0]);
+      Array.from(el.fileAttachmentInput.files).forEach(f => upload(f));
       el.fileAttachmentInput.value = '';
+    }
+  });
+
+  el.cameraInput.addEventListener('change', () => {
+    if (el.cameraInput.files.length > 0) {
+      upload(el.cameraInput.files[0]);
+      el.cameraInput.value = '';
     }
   });
 
@@ -505,6 +601,15 @@
     }
   });
 
+  el.clearClipBtn.addEventListener('click', () => {
+    el.clipText.value = '';
+    el.clipCharCount.textContent = '0 characters';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'clipboard_update', content: '' }));
+      showToast('✓ Clipboard cleared');
+    }
+  });
+
   el.copyClipBtn.addEventListener('click', async () => {
     const text = el.clipText.value;
     if (!text) return;
@@ -526,7 +631,58 @@
     el.clipUpdated.textContent = clip.updatedBy ? `Updated by ${clip.updatedBy} (${formatTime(clip.updatedAt)})` : 'Live sync across all devices';
   }
 
-  // --- Sheets & Modals ---
+  // --- Connected Devices & Network Sheet ---
+  el.networkInfoBtn.addEventListener('click', () => {
+    renderDevicesList();
+    el.devicesSheet.style.display = 'flex';
+    haptic();
+  });
+
+  el.closeDevicesBackdrop.addEventListener('click', () => el.devicesSheet.style.display = 'none');
+
+  function renderDevicesList() {
+    if (state.peers.length === 0) {
+      el.devicesList.innerHTML = '<div class="empty-state">1 Device Active (You)</div>';
+      return;
+    }
+    el.devicesList.innerHTML = state.peers.map(p => {
+      const isMe = p.id === state.myId;
+      return `
+        <div class="device-row">
+          <div class="device-info">
+            <span class="device-dot" style="background:${p.color || '#0a84ff'}"></span>
+            <span class="device-name">${escapeHTML(p.name)}</span>
+          </div>
+          ${isMe ? '<span class="device-you-tag">YOU</span>' : '<span style="font-size:0.72rem; color:var(--text-muted)">Online</span>'}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Export Chat Backup
+  el.exportChatBtn.addEventListener('click', () => {
+    let log = `=== AETHERLAN CHAT BACKUP (${new Date().toLocaleString()}) ===\n\n`;
+    state.messages.forEach(m => {
+      const time = new Date(m.timestamp).toLocaleTimeString();
+      if (m.type === 'text') {
+        log += `[${time}] ${m.senderName}: ${m.text}\n`;
+      } else if (m.type === 'file') {
+        log += `[${time}] ${m.senderName} [FILE]: ${m.file.originalName} (${formatBytes(m.file.size)})\n`;
+      } else if (m.type === 'voice') {
+        log += `[${time}] ${m.senderName} [VOICE MEMO]\n`;
+      }
+    });
+
+    const blob = new Blob([log], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `aetherlan_chat_${Date.now()}.txt`;
+    a.click();
+    showToast('✓ Chat exported');
+    haptic();
+  });
+
+  // --- Profile Sheet ---
   el.profileBtn.addEventListener('click', () => {
     el.nameInput.value = state.name;
     highlightColor(state.color);
@@ -534,7 +690,10 @@
   });
 
   el.closeProfileBackdrop.addEventListener('click', () => el.profileSheet.style.display = 'none');
-  el.qrBtn.addEventListener('click', () => el.qrSheet.style.display = 'flex');
+  el.qrBtn.addEventListener('click', () => {
+    renderQR();
+    el.qrSheet.style.display = 'flex';
+  });
   el.closeQrBackdrop.addEventListener('click', () => el.qrSheet.style.display = 'none');
 
   function highlightColor(col) {
@@ -580,19 +739,28 @@
     el.profileSheet.style.display = 'none';
   });
 
+  // Offline QR Code Generation
   function renderQR() {
     let url = `http://localhost:${state.port}`;
-    if (state.localIPs.length > 0) {
+    if (state.localIPs && state.localIPs.length > 0) {
       url = `http://${state.localIPs[0].address}:${state.port}`;
     }
     el.shareUrl.value = url;
 
-    if (window.QRCode && el.qrCanvas) {
-      QRCode.toCanvas(el.qrCanvas, url, {
-        width: 220,
-        margin: 1,
-        color: { dark: '#07090e', light: '#ffffff' }
-      }, () => {});
+    if (window.QRCode && el.qrCodeContainer) {
+      el.qrCodeContainer.innerHTML = '';
+      try {
+        new QRCode(el.qrCodeContainer, {
+          text: url,
+          width: 200,
+          height: 200,
+          colorDark: "#07090e",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch (err) {
+        console.error('QR Render Error:', err);
+      }
     }
   }
 
