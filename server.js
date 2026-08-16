@@ -1,4 +1,4 @@
-// AetherLAN — Zero-Dependency Local Peer-to-Peer Cyber Mesh & LAN Suite
+// AetherLAN — Zero-Dependency Mobile-First Local Wi-Fi Mesh
 // MIT License • Authored by Zerxen-dev
 
 const http = require('http');
@@ -16,7 +16,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// MIME Types
+// MIME Types Map
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -33,43 +33,21 @@ const MIME_TYPES = {
   '.mp3': 'audio/mpeg',
   '.pdf': 'application/pdf',
   '.zip': 'application/zip',
-  '.tar': 'application/x-tar',
-  '.gz': 'application/gzip',
+  '.apk': 'application/vnd.android.package-archive',
   '.txt': 'text/plain; charset=utf-8'
 };
 
-// In-Memory Multi-Room Mesh State
-const MAX_HISTORY_PER_ROOM = 200;
-const rooms = {
-  'general': {
-    messages: [],
-    files: [],
-    clipboard: {
-      content: "⚡ Welcome to AetherLAN! Type or paste anything here to sync live across phones, laptops, and tablets on this Wi-Fi.",
-      updatedBy: "System",
-      updatedByColor: "#00f2fe",
-      updatedAt: Date.now()
-    }
-  }
+// In-Memory Room State
+const MAX_MESSAGES = 150;
+const messages = [];
+const sharedFiles = [];
+let sharedClipboard = {
+  content: "⚡ AetherLAN Universal Clipboard. Anything you type or paste here syncs across all devices on your Wi-Fi.",
+  updatedBy: "System",
+  updatedAt: Date.now()
 };
 
 const peers = new Map(); // wsSocket -> peerData
-
-function getOrCreateRoom(roomId = 'general') {
-  if (!rooms[roomId]) {
-    rooms[roomId] = {
-      messages: [],
-      files: [],
-      clipboard: {
-        content: `🔒 Room #${roomId} initialized. Synced across all members.`,
-        updatedBy: "System",
-        updatedByColor: "#00ff87",
-        updatedAt: Date.now()
-      }
-    };
-  }
-  return rooms[roomId];
-}
 
 function getLocalIPs() {
   const interfaces = os.networkInterfaces();
@@ -85,11 +63,11 @@ function getLocalIPs() {
 }
 
 // ============================================================================
-// RFC 6455 WEBSOCKET PROTOCOL ENGINE
+// RFC 6455 WEBSOCKET PROTOCOL ENGINE (PURE NODE.JS)
 // ============================================================================
 const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-class WebSocketConnection extends EventEmitter {
+class SimpleWebSocket extends EventEmitter {
   constructor(socket) {
     super();
     this.socket = socket;
@@ -190,40 +168,31 @@ class WebSocketConnection extends EventEmitter {
   }
 }
 
-function broadcastToRoom(roomId, data, excludeWs = null) {
+function broadcast(data, excludeWs = null) {
   const payload = JSON.stringify(data);
-  for (const [clientWs, peer] of peers) {
-    if (peer.room === roomId && clientWs !== excludeWs) {
+  for (const [clientWs] of peers) {
+    if (clientWs !== excludeWs) {
       clientWs.send(payload);
     }
   }
 }
 
-function getRoomPeers(roomId) {
-  const list = [];
-  for (const [, peer] of peers) {
-    if (peer.room === roomId) {
-      list.push({
-        id: peer.id,
-        name: peer.name,
-        color: peer.color,
-        device: peer.device,
-        ping: peer.ping || 0,
-        joinedAt: peer.joinedAt
-      });
-    }
-  }
-  return list;
+function getPeerList() {
+  return Array.from(peers.values()).map(p => ({
+    id: p.id,
+    name: p.name,
+    color: p.color,
+    joinedAt: p.joinedAt
+  }));
 }
 
 // ============================================================================
-// HTTP SERVER & HIGH-SPEED STREAMING ENDPOINTS
+// HTTP SERVER & STATIC FILE DISPATCHER
 // ============================================================================
 const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = decodeURIComponent(parsedUrl.pathname);
 
-  // LAN CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
@@ -234,7 +203,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // API: Health & Subnet Info
+  // API: System Info
   if (pathname === '/api/info') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -243,25 +212,21 @@ const server = http.createServer((req, res) => {
       creator: "Zerxen-dev",
       ips: getLocalIPs(),
       port: PORT,
-      activePeers: peers.size
+      online: peers.size
     }));
     return;
   }
 
-  // API: High-Speed File / Media / Voice Upload
+  // API: File Upload
   if (pathname === '/api/upload' && req.method === 'POST') {
-    const roomId = req.headers['x-room-id'] || 'general';
-    const room = getOrCreateRoom(roomId);
-
     const rawFileName = req.headers['x-file-name'] || 'file_' + Date.now();
     const sanitizedName = decodeURIComponent(rawFileName).replace(/[^a-zA-Z0-9._-]/g, '_');
     const uniqueFileName = `${Date.now()}_${Math.round(Math.random() * 1e6)}_${sanitizedName}`;
     const targetPath = path.join(UPLOADS_DIR, uniqueFileName);
 
     const isVoice = req.headers['x-is-voice'] === 'true';
-    const isEncrypted = req.headers['x-is-encrypted'] === 'true';
     const senderName = decodeURIComponent(req.headers['x-sender-name'] || 'Anonymous');
-    const senderColor = decodeURIComponent(req.headers['x-sender-color'] || '#00f2fe');
+    const senderColor = decodeURIComponent(req.headers['x-sender-color'] || '#0a84ff');
     const senderId = req.headers['x-sender-id'] || 'anon';
 
     const writeStream = fs.createWriteStream(targetPath);
@@ -285,15 +250,14 @@ const server = http.createServer((req, res) => {
         size: totalBytes,
         mimeType,
         isVoice,
-        isEncrypted,
         senderName,
         senderColor,
         uploadedAt: Date.now(),
         url: `/uploads/${encodeURIComponent(uniqueFileName)}`
       };
 
-      room.files.unshift(fileData);
-      if (room.files.length > 80) room.files.pop();
+      sharedFiles.unshift(fileData);
+      if (sharedFiles.length > 50) sharedFiles.pop();
 
       const chatMsg = {
         id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -302,22 +266,20 @@ const server = http.createServer((req, res) => {
         senderColor,
         type: isVoice ? 'voice' : 'file',
         file: fileData,
-        timestamp: Date.now(),
-        reactions: {}
+        timestamp: Date.now()
       };
 
-      room.messages.push(chatMsg);
-      if (room.messages.length > MAX_HISTORY_PER_ROOM) room.messages.shift();
+      messages.push(chatMsg);
+      if (messages.length > MAX_MESSAGES) messages.shift();
 
-      broadcastToRoom(roomId, { type: 'new_message', message: chatMsg });
-      broadcastToRoom(roomId, { type: 'file_list', files: room.files });
+      broadcast({ type: 'new_message', message: chatMsg });
+      broadcast({ type: 'file_list', files: sharedFiles });
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, file: fileData, message: chatMsg }));
     });
 
     req.on('error', (err) => {
-      console.error('Upload Error:', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
     });
@@ -343,7 +305,7 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    // Support streaming video/audio range requests (for smooth media playback)
+    // Support streaming video/audio range requests
     const range = req.headers.range;
     if (range && (contentType.startsWith('video/') || contentType.startsWith('audio/'))) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -378,7 +340,7 @@ const server = http.createServer((req, res) => {
 });
 
 // ============================================================================
-// WEBSOCKET PEER MANAGEMENT
+// WEBSOCKET UPGRADE
 // ============================================================================
 server.on('upgrade', (req, socket) => {
   if (req.headers['upgrade'] !== 'websocket' || !req.headers['sec-websocket-key']) {
@@ -398,97 +360,50 @@ server.on('upgrade', (req, socket) => {
     '\r\n'
   ].join('\r\n'));
 
-  const ws = new WebSocketConnection(socket);
+  const ws = new SimpleWebSocket(socket);
   const peerId = 'peer_' + Math.random().toString(36).substr(2, 8);
-  const clientIP = socket.remoteAddress;
 
   const peerData = {
     id: peerId,
-    name: 'Ghost_' + Math.floor(1000 + Math.random() * 9000),
-    color: '#00f2fe',
-    device: 'Mobile',
-    room: 'general',
-    ip: clientIP,
-    ping: 0,
+    name: 'User_' + Math.floor(100 + Math.random() * 900),
+    color: '#0a84ff',
     joinedAt: Date.now()
   };
 
   peers.set(ws, peerData);
 
-  // Send Initial Room State
-  const currentRoom = getOrCreateRoom('general');
   ws.send(JSON.stringify({
     type: 'init',
     yourId: peerId,
-    room: 'general',
-    peers: getRoomPeers('general'),
-    messages: currentRoom.messages,
-    files: currentRoom.files,
-    clipboard: currentRoom.clipboard,
+    peers: getPeerList(),
+    messages: messages,
+    files: sharedFiles,
+    clipboard: sharedClipboard,
     localIPs: getLocalIPs(),
     port: PORT
   }));
 
-  broadcastToRoom('general', {
+  broadcast({
     type: 'peer_joined',
     peer: peerData,
-    peers: getRoomPeers('general')
+    peers: getPeerList()
   }, ws);
 
   ws.on('message', (raw) => {
     try {
       const data = JSON.parse(raw);
-      const room = getOrCreateRoom(peerData.room);
 
       switch (data.type) {
         case 'set_profile': {
-          if (data.name) peerData.name = data.name.trim().slice(0, 24);
+          if (data.name) peerData.name = data.name.trim().slice(0, 20);
           if (data.color) peerData.color = data.color;
-          if (data.device) peerData.device = data.device;
           peers.set(ws, peerData);
 
-          broadcastToRoom(peerData.room, {
+          broadcast({
             type: 'peer_updated',
             peer: peerData,
-            peers: getRoomPeers(peerData.room)
+            peers: getPeerList()
           });
-          break;
-        }
-
-        case 'join_room': {
-          const oldRoom = peerData.room;
-          const newRoomId = (data.roomId || 'general').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) || 'general';
-
-          if (oldRoom !== newRoomId) {
-            peerData.room = newRoomId;
-            peers.set(ws, peerData);
-
-            // Notify old room
-            broadcastToRoom(oldRoom, {
-              type: 'peer_left',
-              peerId: peerData.id,
-              name: peerData.name,
-              peers: getRoomPeers(oldRoom)
-            });
-
-            // Send new room snapshot
-            const newRoom = getOrCreateRoom(newRoomId);
-            ws.send(JSON.stringify({
-              type: 'room_switched',
-              room: newRoomId,
-              peers: getRoomPeers(newRoomId),
-              messages: newRoom.messages,
-              files: newRoom.files,
-              clipboard: newRoom.clipboard
-            }));
-
-            // Notify new room
-            broadcastToRoom(newRoomId, {
-              type: 'peer_joined',
-              peer: peerData,
-              peers: getRoomPeers(newRoomId)
-            }, ws);
-          }
           break;
         }
 
@@ -496,63 +411,25 @@ server.on('upgrade', (req, socket) => {
           const text = (data.text || '').trim();
           if (!text) return;
 
-          const burnSeconds = parseInt(data.burnSeconds, 10) || 0;
-          const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-
           const msg = {
-            id: msgId,
+            id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
             senderId: peerData.id,
             senderName: peerData.name,
             senderColor: peerData.color,
             type: 'text',
-            text: text.slice(0, 4000),
-            isEncrypted: !!data.isEncrypted,
-            timestamp: Date.now(),
-            burnSeconds: burnSeconds > 0 ? burnSeconds : null,
-            burnsAt: burnSeconds > 0 ? Date.now() + (burnSeconds * 1000) : null,
-            reactions: {}
+            text: text.slice(0, 3000),
+            timestamp: Date.now()
           };
 
-          room.messages.push(msg);
-          if (room.messages.length > MAX_HISTORY_PER_ROOM) room.messages.shift();
+          messages.push(msg);
+          if (messages.length > MAX_MESSAGES) messages.shift();
 
-          broadcastToRoom(peerData.room, { type: 'new_message', message: msg });
-
-          if (burnSeconds > 0) {
-            setTimeout(() => {
-              const idx = room.messages.findIndex(m => m.id === msgId);
-              if (idx !== -1) {
-                room.messages.splice(idx, 1);
-                broadcastToRoom(peerData.room, { type: 'message_burned', messageId: msgId });
-              }
-            }, burnSeconds * 1000);
-          }
-          break;
-        }
-
-        case 'reaction': {
-          const { messageId, emoji } = data;
-          const msg = room.messages.find(m => m.id === messageId);
-          if (msg && emoji) {
-            if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-            const idx = msg.reactions[emoji].indexOf(peerData.name);
-            if (idx >= 0) {
-              msg.reactions[emoji].splice(idx, 1);
-              if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
-            } else {
-              msg.reactions[emoji].push(peerData.name);
-            }
-            broadcastToRoom(peerData.room, {
-              type: 'reaction_updated',
-              messageId,
-              reactions: msg.reactions
-            });
-          }
+          broadcast({ type: 'new_message', message: msg });
           break;
         }
 
         case 'typing': {
-          broadcastToRoom(peerData.room, {
+          broadcast({
             type: 'typing',
             peerId: peerData.id,
             name: peerData.name,
@@ -562,48 +439,34 @@ server.on('upgrade', (req, socket) => {
         }
 
         case 'clipboard_update': {
-          room.clipboard = {
-            content: (data.content || '').slice(0, 60000),
+          sharedClipboard = {
+            content: (data.content || '').slice(0, 50000),
             updatedBy: peerData.name,
-            updatedByColor: peerData.color,
             updatedAt: Date.now()
           };
-          broadcastToRoom(peerData.room, {
-            type: 'clipboard_updated',
-            clipboard: room.clipboard
-          });
-          break;
-        }
-
-        case 'ping': {
-          peerData.ping = data.latency || 0;
-          ws.send(JSON.stringify({ type: 'pong', time: data.time }));
+          broadcast({ type: 'clipboard_updated', clipboard: sharedClipboard });
           break;
         }
       }
-    } catch (err) {
-      console.error('WS Error:', err);
-    }
+    } catch (err) {}
   });
 
   ws.on('close', () => {
     peers.delete(ws);
-    broadcastToRoom(peerData.room, {
+    broadcast({
       type: 'peer_left',
       peerId: peerData.id,
       name: peerData.name,
-      peers: getRoomPeers(peerData.room)
+      peers: getPeerList()
     });
   });
-
-  ws.on('error', () => {});
 });
 
 // Start Server
 server.listen(PORT, '0.0.0.0', () => {
   const ips = getLocalIPs();
   console.log('\n=============================================================');
-  console.log('   ⚡ AETHERLAN 2.0 — ZERO-DEPENDENCY CYBER MESH IS LIVE! ⚡  ');
+  console.log('   📱 AETHERLAN — ZERO-DEPENDENCY MOBILE MESH LIVE! 📱       ');
   console.log('=============================================================');
   console.log(` ▸ Local Host:     http://localhost:${PORT}`);
   if (ips.length > 0) {
@@ -611,6 +474,5 @@ server.listen(PORT, '0.0.0.0', () => {
       console.log(` ▸ Wi-Fi / LAN (${net.interface}): http://${net.address}:${PORT}`);
     });
   }
-  console.log('=============================================================');
-  console.log(' Ready for high-speed offline Wi-Fi mesh transfers!\n');
+  console.log('=============================================================\n');
 });
