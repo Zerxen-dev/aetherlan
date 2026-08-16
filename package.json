@@ -1,0 +1,14 @@
+{
+  "name": "zerxenlan",
+  "version": "1.0.0",
+  "description": "Zero-internet local Wi-Fi anonymous chat, file drop & shared clipboard suite",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.17.1"
+  }
+}

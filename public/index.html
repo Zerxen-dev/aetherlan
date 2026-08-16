@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b0d13">
+  <title>ZerxenLAN — Zero-Internet Wi-Fi Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="ghost-logo">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <span class="live-pulse"></span>
+        </div>
+        <div class="brand-text">
+          <h1>ZerxenLAN</h1>
+          <span class="lan-status" id="connectionStatus">Connecting...</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="qrModalBtn" class="icon-btn" title="Share QR / LAN Link" aria-label="Share QR">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+        </button>
+        <button id="soundToggleBtn" class="icon-btn" title="Toggle Sound FX" aria-label="Toggle Sound">
+          <svg id="soundIconOn" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+        <button id="profileBtn" class="profile-badge" title="Customize Codename">
+          <span class="avatar-dot" id="headerAvatarDot"></span>
+          <span class="profile-name" id="headerProfileName">Ghost</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="chatTab">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Chat</span>
+        <span class="unread-pill" id="unreadBadge" style="display:none;">0</span>
+      </button>
+      <button class="nav-tab" data-tab="dropTab">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>Dropzone</span>
+        <span class="counter-badge" id="fileCountBadge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="clipTab">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+          <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+        </svg>
+        <span>ClipBoard</span>
+      </button>
+      <button class="nav-tab" data-tab="radarTab">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m4.93 4.93 4.24 4.24"></path>
+          <path d="m14.83 9.17 4.24-4.24"></path>
+          <path d="m14.83 14.83 4.24 4.24"></path>
+          <path d="m9.17 14.83-4.24 4.24"></path>
+          <circle cx="12" cy="12" r="4"></circle>
+        </svg>
+        <span>Radar</span>
+        <span class="counter-badge active-peers-badge" id="peerCountBadge">1</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="tab-content-container">
+      
+      <!-- TAB 1: LIVE CHAT -->
+      <section id="chatTab" class="tab-pane active">
+        <div class="chat-messages" id="chatStream">
+          <div class="system-message banner-welcome">
+            <span class="system-tag">LAN ENCRYPTED</span>
+            <p>You are connected directly over the local network. No external internet or cloud storage is used.</p>
+          </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-bar" id="typingIndicator" style="display:none;">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="typing-text" id="typingText">Someone is typing...</span>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="chat-input-wrapper">
+          <!-- Burner Selector Bar -->
+          <div class="burner-bar" id="burnerBar">
+            <span class="burner-label">🔥 Auto-Burn:</span>
+            <div class="burner-options">
+              <button type="button" class="burn-opt active" data-sec="0">Off</button>
+              <button type="button" class="burn-opt" data-sec="5">5s</button>
+              <button type="button" class="burn-opt" data-sec="15">15s</button>
+              <button type="button" class="burn-opt" data-sec="60">60s</button>
+            </div>
+          </div>
+
+          <form id="chatForm" class="chat-form">
+            <input type="file" id="filePickerInput" class="hidden-input">
+            
+            <button type="button" id="attachFileBtn" class="chat-tool-btn" title="Send File / Photo">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+            </button>
+
+            <button type="button" id="burnToggleBtn" class="chat-tool-btn" title="Self-Destruct Timer">
+              <span class="burn-icon">🔥</span>
+            </button>
+
+            <textarea id="messageInput" rows="1" placeholder="Type a message or drop files..." maxlength="3000"></textarea>
+
+            <button type="button" id="voiceRecordBtn" class="chat-tool-btn voice-btn" title="Record Voice Note">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </button>
+
+            <button type="submit" id="sendMsgBtn" class="send-btn" aria-label="Send message">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+
+          <!-- Voice Recording Bar (Hidden by default) -->
+          <div class="voice-recording-ui" id="voiceRecordingUI" style="display: none;">
+            <div class="record-pulse-dot"></div>
+            <span class="record-time" id="recordTimer">00:00</span>
+            <span class="record-hint">Recording audio note...</span>
+            <div class="record-actions">
+              <button type="button" id="cancelVoiceBtn" class="record-btn cancel">Cancel</button>
+              <button type="button" id="sendVoiceBtn" class="record-btn send">Send Note</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: DROPZONE / FILE SHARING -->
+      <section id="dropTab" class="tab-pane">
+        <div class="drop-zone" id="largeDropZone">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <h3>Drag & Drop Files Here</h3>
+          <p>Instant high-speed LAN transfer (up to 500MB per file)</p>
+          <button type="button" id="browseFilesBtn" class="primary-btn">Browse Files</button>
+        </div>
+
+        <div class="upload-progress-container" id="uploadProgressBar" style="display:none;">
+          <div class="progress-info">
+            <span id="uploadFileName">Uploading file...</span>
+            <span id="uploadPercent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+        </div>
+
+        <div class="shared-files-section">
+          <div class="section-title-bar">
+            <h3>Recent Shared Files</h3>
+            <span class="files-summary" id="filesSummaryText">0 files available</span>
+          </div>
+          <div class="file-grid" id="fileGrid">
+            <div class="empty-state">No files uploaded yet. Drop a file to share with anyone on your Wi-Fi.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: SHARED CLIPBOARD -->
+      <section id="clipTab" class="tab-pane">
+        <div class="clipboard-card">
+          <div class="clipboard-header">
+            <div class="clip-info">
+              <h3>Live Synced Clipboard</h3>
+              <p id="clipboardMeta">Synced across all devices</p>
+            </div>
+            <div class="clip-actions">
+              <button id="copyClipBtn" class="primary-btn small">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy</span>
+              </button>
+            </div>
+          </div>
+          <textarea id="clipboardText" placeholder="Paste or type text, code, URLs, or notes here... Everyone on Wi-Fi sees updates in real-time."></textarea>
+          <div class="clipboard-footer">
+            <span class="char-count" id="clipCharCount">0 characters</span>
+            <button id="broadcastClipBtn" class="accent-btn small">Sync Now</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: RADAR & PEERS -->
+      <section id="radarTab" class="tab-pane">
+        <div class="radar-card">
+          <div class="radar-header">
+            <div class="radar-ping-ring">
+              <div class="radar-sweep"></div>
+            </div>
+            <div>
+              <h3>Wi-Fi Radar</h3>
+              <p>Active devices connected to this ZerxenLAN room</p>
+            </div>
+          </div>
+
+          <div class="peer-list" id="peerList">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="lan-info-card">
+          <h3>Room Access URLs</h3>
+          <p>Any phone or laptop on your Wi-Fi can open these links:</p>
+          <div class="lan-urls-list" id="lanUrlsList">
+            <div class="url-item">
+              <code>http://localhost:4000</code>
+              <button class="copy-url-btn" data-url="http://localhost:4000">Copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Profile Customization Modal -->
+    <div class="modal-overlay" id="profileModal" style="display:none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Agent Profile</h3>
+          <button type="button" class="close-modal" id="closeProfileModal">&times;</button>
+        </div>
+        <form id="profileForm" class="modal-body">
+          <label>Codename</label>
+          <input type="text" id="customNameInput" maxlength="24" placeholder="e.g. NeonPhantom" required>
+          
+          <label>Avatar Color</label>
+          <div class="color-picker-grid" id="colorPickerGrid">
+            <button type="button" class="color-swatch" style="background:#00f2fe" data-color="#00f2fe"></button>
+            <button type="button" class="color-swatch" style="background:#00ff87" data-color="#00ff87"></button>
+            <button type="button" class="color-swatch" style="background:#ff007f" data-color="#ff007f"></button>
+            <button type="button" class="color-swatch" style="background:#ffaa00" data-color="#ffaa00"></button>
+            <button type="button" class="color-swatch" style="background:#9d4edd" data-color="#9d4edd"></button>
+            <button type="button" class="color-swatch" style="background:#38ef7d" data-color="#38ef7d"></button>
+            <button type="button" class="color-swatch" style="background:#ff5252" data-color="#ff5252"></button>
+            <button type="button" class="color-swatch" style="background:#4facfe" data-color="#4facfe"></button>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="cancel-btn" id="randomizeProfileBtn">🎲 Randomize</button>
+            <button type="submit" class="primary-btn">Save Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- QR Code / Share Modal -->
+    <div class="modal-overlay" id="qrModal" style="display:none;">
+      <div class="modal-card text-center">
+        <div class="modal-header">
+          <h3>Scan to Join Room</h3>
+          <button type="button" class="close-modal" id="closeQrModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="qr-container" id="qrCanvasContainer">
+            <canvas id="qrCanvas" width="220" height="220"></canvas>
+          </div>
+          <p class="qr-hint">Scan with any phone camera on this Wi-Fi to enter instantly!</p>
+          <div class="qr-url-box">
+            <input type="text" id="primaryShareUrl" readonly>
+            <button type="button" id="copyShareUrlBtn" class="primary-btn small">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
