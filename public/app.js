@@ -1,12 +1,24 @@
-// AetherLAN — Mobile-First Matrix Client with Permissions
+// AetherLAN — Mobile-First Matrix Client with Onboarding & Persistence
 (function() {
   'use strict';
 
+  // Persistent Device ID
+  function getOrCreateDeviceId() {
+    let devId = localStorage.getItem('aether_device_id');
+    if (!devId) {
+      devId = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 8);
+      localStorage.setItem('aether_device_id', devId);
+    }
+    return devId;
+  }
+
   // State
   const state = {
+    deviceId: getOrCreateDeviceId(),
     myId: null,
-    name: localStorage.getItem('aether_name') || generateName(),
-    color: localStorage.getItem('aether_color') || '#0a84ff',
+    name: localStorage.getItem('aether_user_name') || '',
+    color: localStorage.getItem('aether_user_color') || '#0a84ff',
+    isProfileSet: localStorage.getItem('aether_profile_set') === 'true',
     activeTab: 'chatView',
     unreadCount: 0,
     searchQuery: '',
@@ -22,11 +34,7 @@
     recordStart: 0,
     typingTimer: null,
     isTyping: false,
-    perms: {
-      mic: false,
-      cam: false,
-      notif: false
-    }
+    perms: { mic: false, cam: false, notif: false }
   };
 
   // DOM Elements
@@ -79,6 +87,13 @@
     clearClipBtn: document.getElementById('clearClipBtn'),
     syncClipBtn: document.getElementById('syncClipBtn'),
     clipCharCount: document.getElementById('clipCharCount'),
+    // Welcome Modal
+    welcomeModal: document.getElementById('welcomeModal'),
+    welcomeForm: document.getElementById('welcomeForm'),
+    welcomeNameInput: document.getElementById('welcomeNameInput'),
+    welcomeAvatarCircle: document.getElementById('welcomeAvatarCircle'),
+    welcomeColorRow: document.getElementById('welcomeColorRow'),
+    welcomeRandomBtn: document.getElementById('welcomeRandomBtn'),
     // Devices Sheet
     devicesSheet: document.getElementById('devicesSheet'),
     closeDevicesBackdrop: document.getElementById('closeDevicesBackdrop'),
@@ -111,10 +126,11 @@
     toastWrapper: document.getElementById('toastWrapper')
   };
 
-  // Utilities
-  function generateName() {
-    const names = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo', 'Phoenix', 'Kai'];
-    return names[Math.floor(Math.random() * names.length)] + '_' + Math.floor(10 + Math.random() * 90);
+  const RANDOM_NAMES = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery', 'Dev', 'Echo', 'Phoenix', 'Kai', 'Sky', 'Nova'];
+  const COLOR_LIST = ['#0a84ff', '#30d158', '#ff375f', '#ffd60a', '#bf5af2', '#64d2ff', '#ff9f0a'];
+
+  function getRandomName() {
+    return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)] + '_' + Math.floor(10 + Math.random() * 90);
   }
 
   function haptic() {
@@ -142,7 +158,8 @@
   }
 
   function updateProfileDisplay() {
-    el.userAvatar.textContent = (state.name || 'G').charAt(0).toUpperCase();
+    const initial = (state.name || '?').charAt(0).toUpperCase();
+    el.userAvatar.textContent = initial;
     el.userAvatar.style.backgroundColor = state.color;
   }
 
@@ -164,6 +181,72 @@
     });
   }
 
+  // --- Onboarding / Welcome Screen Logic ---
+  let welcomeSelectedColor = state.color || '#0a84ff';
+
+  function initOnboarding() {
+    if (!state.isProfileSet || !state.name) {
+      const defaultName = getRandomName();
+      el.welcomeNameInput.value = defaultName;
+      updateWelcomeAvatar(defaultName, welcomeSelectedColor);
+      el.welcomeModal.style.display = 'flex';
+    } else {
+      updateProfileDisplay();
+      connect();
+    }
+  }
+
+  function updateWelcomeAvatar(name, col) {
+    const initial = (name || '?').charAt(0).toUpperCase();
+    el.welcomeAvatarCircle.textContent = initial;
+    el.welcomeAvatarCircle.style.backgroundColor = col;
+  }
+
+  el.welcomeNameInput.addEventListener('input', () => {
+    updateWelcomeAvatar(el.welcomeNameInput.value, welcomeSelectedColor);
+  });
+
+  el.welcomeColorRow.addEventListener('click', (e) => {
+    if (e.target.dataset.color) {
+      welcomeSelectedColor = e.target.dataset.color;
+      el.welcomeColorRow.querySelectorAll('.color-ball').forEach(b => {
+        b.classList.toggle('active', b.dataset.color === welcomeSelectedColor);
+      });
+      updateWelcomeAvatar(el.welcomeNameInput.value, welcomeSelectedColor);
+    }
+  });
+
+  el.welcomeRandomBtn.addEventListener('click', () => {
+    const name = getRandomName();
+    welcomeSelectedColor = COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)];
+    el.welcomeNameInput.value = name;
+    el.welcomeColorRow.querySelectorAll('.color-ball').forEach(b => {
+      b.classList.toggle('active', b.dataset.color === welcomeSelectedColor);
+    });
+    updateWelcomeAvatar(name, welcomeSelectedColor);
+    haptic();
+  });
+
+  el.welcomeForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const chosenName = el.welcomeNameInput.value.trim();
+    if (!chosenName) return;
+
+    state.name = chosenName;
+    state.color = welcomeSelectedColor;
+    state.isProfileSet = true;
+
+    localStorage.setItem('aether_user_name', state.name);
+    localStorage.setItem('aether_user_color', state.color);
+    localStorage.setItem('aether_profile_set', 'true');
+
+    el.welcomeModal.style.display = 'none';
+    updateProfileDisplay();
+    connect();
+    showToast(`👋 Welcome, ${state.name}!`);
+    haptic();
+  });
+
   // --- Permissions Management ---
   async function checkPermissions() {
     if (window.Notification) {
@@ -181,7 +264,7 @@
     }
 
     const dismissed = localStorage.getItem('aether_perm_banner_dismissed') === 'true';
-    if (!dismissed && (!state.perms.mic || !state.perms.cam || !state.perms.notif)) {
+    if (!dismissed && state.isProfileSet && (!state.perms.mic || !state.perms.cam || !state.perms.notif)) {
       el.permBanner.style.display = 'flex';
     }
   }
@@ -276,10 +359,7 @@
   function notifyUser(title, body) {
     if (document.hidden && window.Notification && Notification.permission === 'granted') {
       try {
-        new Notification(title, {
-          body,
-          icon: '/favicon.ico'
-        });
+        new Notification(title, { body, icon: '/favicon.ico' });
       } catch (e) {}
     }
   }
@@ -287,12 +367,14 @@
   // --- WebSocket Connection ---
   let ws = null;
   function connect() {
+    if (!state.name) return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${window.location.host}`);
 
     ws.onopen = () => {
       ws.send(JSON.stringify({
         type: 'set_profile',
+        deviceId: state.deviceId,
         name: state.name,
         color: state.color,
         device: 'Mobile'
@@ -349,7 +431,7 @@
           el.chatBadge.style.display = 'inline-block';
         }
 
-        if (data.message.senderId !== state.myId) {
+        if (data.message.senderId !== state.myId && data.message.senderName !== state.name) {
           notifyUser(`AetherLAN: ${data.message.senderName}`, data.message.text || 'Shared a file');
         }
         haptic();
@@ -792,7 +874,7 @@
       return;
     }
     el.devicesList.innerHTML = state.peers.map(p => {
-      const isMe = p.id === state.myId;
+      const isMe = p.id === state.myId || p.name === state.name;
       return `
         <div class="device-row">
           <div class="device-info">
@@ -853,9 +935,8 @@
   });
 
   el.randomizeNameBtn.addEventListener('click', () => {
-    el.nameInput.value = generateName();
-    const colors = ['#0a84ff', '#30d158', '#ff375f', '#ffd60a', '#bf5af2', '#64d2ff', '#ff9f0a'];
-    highlightColor(colors[Math.floor(Math.random() * colors.length)]);
+    el.nameInput.value = getRandomName();
+    highlightColor(COLOR_LIST[Math.floor(Math.random() * COLOR_LIST.length)]);
   });
 
   el.profileForm.addEventListener('submit', (e) => {
@@ -867,13 +948,14 @@
     if (newName) {
       state.name = newName;
       state.color = newCol;
-      localStorage.setItem('aether_name', state.name);
-      localStorage.setItem('aether_color', state.color);
+      localStorage.setItem('aether_user_name', state.name);
+      localStorage.setItem('aether_user_color', state.color);
       updateProfileDisplay();
 
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'set_profile',
+          deviceId: state.deviceId,
           name: state.name,
           color: state.color,
           device: 'Mobile'
@@ -928,9 +1010,8 @@
     return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
   }
 
-  // Init
-  updateProfileDisplay();
+  // --- Initialize App ---
+  initOnboarding();
   checkPermissions();
-  connect();
 
 })();

@@ -63,7 +63,7 @@ function getLocalIPs() {
 }
 
 // ============================================================================
-// RFC 6455 WEBSOCKET PROTOCOL ENGINE (PURE NODE.JS)
+// RFC 6455 WEBSOCKET PROTOCOL ENGINE
 // ============================================================================
 const WS_MAGIC = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -180,6 +180,7 @@ function broadcast(data, excludeWs = null) {
 function getPeerList() {
   return Array.from(peers.values()).map(p => ({
     id: p.id,
+    deviceId: p.deviceId,
     name: p.name,
     color: p.color,
     joinedAt: p.joinedAt
@@ -365,7 +366,8 @@ server.on('upgrade', (req, socket) => {
 
   const peerData = {
     id: peerId,
-    name: 'User_' + Math.floor(100 + Math.random() * 900),
+    deviceId: null,
+    name: 'User',
     color: '#0a84ff',
     joinedAt: Date.now()
   };
@@ -383,12 +385,6 @@ server.on('upgrade', (req, socket) => {
     port: PORT
   }));
 
-  broadcast({
-    type: 'peer_joined',
-    peer: peerData,
-    peers: getPeerList()
-  }, ws);
-
   ws.on('message', (raw) => {
     try {
       const data = JSON.parse(raw);
@@ -397,6 +393,7 @@ server.on('upgrade', (req, socket) => {
         case 'set_profile': {
           if (data.name) peerData.name = data.name.trim().slice(0, 20);
           if (data.color) peerData.color = data.color;
+          if (data.deviceId) peerData.deviceId = data.deviceId;
           peers.set(ws, peerData);
 
           broadcast({

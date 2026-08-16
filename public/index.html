@@ -19,7 +19,7 @@
     <!-- Mobile App Top Bar -->
     <header class="app-bar">
       <button id="profileBtn" class="avatar-btn" title="Your Profile" aria-label="Profile">
-        <span class="avatar-circle" id="userAvatar">G</span>
+        <span class="avatar-circle" id="userAvatar">?</span>
       </button>
       
       <div class="app-title-group" id="networkInfoBtn" title="View Connected Devices">
@@ -54,7 +54,7 @@
       </div>
     </header>
 
-    <!-- First Launch Permissions Banner -->
+    <!-- Permissions Banner -->
     <div class="perm-banner" id="permBanner" style="display:none;">
       <div class="perm-banner-content">
         <span class="perm-banner-icon">🛡️</span>
@@ -224,6 +224,40 @@
       </section>
 
     </main>
+
+    <!-- ONBOARDING: WELCOME & SET NAME MODAL (Shown First) -->
+    <div class="welcome-modal-overlay" id="welcomeModal" style="display:none;">
+      <div class="welcome-card">
+        <div class="welcome-icon">⚡</div>
+        <h2 class="welcome-title">Welcome to AetherLAN</h2>
+        <p class="welcome-sub">Choose your display name and avatar color to join this Wi-Fi mesh:</p>
+        
+        <form id="welcomeForm" class="welcome-form">
+          <div class="welcome-avatar-preview">
+            <span class="welcome-avatar-circle" id="welcomeAvatarCircle">?</span>
+          </div>
+
+          <label class="input-label">Your Name</label>
+          <input type="text" id="welcomeNameInput" class="text-field" maxlength="20" placeholder="e.g. Zerxen" required autofocus>
+          
+          <label class="input-label">Avatar Color</label>
+          <div class="color-row" id="welcomeColorRow">
+            <button type="button" class="color-ball active" style="background:#0a84ff" data-color="#0a84ff"></button>
+            <button type="button" class="color-ball" style="background:#30d158" data-color="#30d158"></button>
+            <button type="button" class="color-ball" style="background:#ff375f" data-color="#ff375f"></button>
+            <button type="button" class="color-ball" style="background:#ffd60a" data-color="#ffd60a"></button>
+            <button type="button" class="color-ball" style="background:#bf5af2" data-color="#bf5af2"></button>
+            <button type="button" class="color-ball" style="background:#64d2ff" data-color="#64d2ff"></button>
+            <button type="button" class="color-ball" style="background:#ff9f0a" data-color="#ff9f0a"></button>
+          </div>
+
+          <div class="welcome-actions">
+            <button type="button" id="welcomeRandomBtn" class="pill-btn secondary">🎲 Random</button>
+            <button type="submit" class="pill-btn primary" style="flex:1;">Join Network</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Permissions Sheet Modal -->
     <div class="bottom-sheet" id="permSheet" style="display:none;">

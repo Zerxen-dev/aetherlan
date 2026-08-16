@@ -1163,3 +1163,80 @@ html, body {
   border: 1px solid rgba(48, 209, 88, 0.3);
   pointer-events: none;
 }
+
+/* ==========================================================================
+   WELCOME & ONBOARDING MODAL
+   ========================================================================== */
+.welcome-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 9, 14, 0.94);
+  backdrop-filter: blur(8px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.welcome-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 360px;
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+.welcome-icon {
+  font-size: 2.2rem;
+  margin-bottom: 6px;
+}
+
+.welcome-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.welcome-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.welcome-avatar-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.welcome-avatar-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--brand-blue);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(10, 132, 255, 0.3);
+  text-transform: uppercase;
+}
+
+.welcome-form .input-label {
+  text-align: left;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
