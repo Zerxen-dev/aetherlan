@@ -37,6 +37,11 @@
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
           </svg>
         </button>
+        <button id="permBtn" class="circle-btn" title="Device Permissions" aria-label="Permissions">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </button>
         <button id="searchToggleBtn" class="circle-btn" title="Search Messages" aria-label="Search">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
@@ -54,17 +59,17 @@
       </div>
     </header>
 
-    <!-- Permissions Banner -->
+    <!-- Permissions Banner (Dismissable) -->
     <div class="perm-banner" id="permBanner" style="display:none;">
       <div class="perm-banner-content">
         <span class="perm-banner-icon">🛡️</span>
         <div>
-          <strong>Enable Permissions</strong>
-          <p>Allow Mic, Camera & Notifications for calls and instant drop alerts.</p>
+          <strong>Device Permissions</strong>
+          <p>Enable Mic & Camera for voice notes & calls.</p>
         </div>
       </div>
       <div class="perm-banner-actions">
-        <button type="button" id="grantAllPermsBtn" class="pill-btn primary small">Grant All</button>
+        <button type="button" id="grantAllPermsBtn" class="pill-btn primary small">Allow</button>
         <button type="button" id="dismissPermBannerBtn" class="perm-dismiss-btn">&times;</button>
       </div>
     </div>
@@ -225,18 +230,13 @@
 
     </main>
 
-    <!-- LIVE WEBRTC CALL OVERLAY (Fullscreen HD Voice / Video / ScreenShare) -->
+    <!-- LIVE WEBRTC CALL OVERLAY -->
     <div class="call-overlay" id="callOverlay" style="display:none;">
       <div class="call-media-container">
-        <!-- Remote Video/Screen Stream -->
         <video id="remoteVideo" autoplay playsinline class="remote-video"></video>
-        <!-- Remote Audio Stream -->
         <audio id="remoteAudio" autoplay></audio>
-        
-        <!-- Local Picture-in-Picture Video -->
         <video id="localVideo" autoplay playsinline muted class="local-video-pip" style="display:none;"></video>
         
-        <!-- Audio Call Avatar Display -->
         <div class="audio-call-display" id="audioCallDisplay">
           <div class="call-avatar-ring">
             <div class="call-pulse-wave"></div>
@@ -244,14 +244,13 @@
           </div>
           <h2 class="call-peer-name" id="callPeerName">Connected Peer</h2>
           <span class="call-timer" id="callTimer">00:00</span>
-          <span class="call-quality-badge" id="callQualityBadge">Direct P2P LAN</span>
+          <span class="call-quality-badge">Direct P2P LAN</span>
         </div>
       </div>
 
-      <!-- Floating Call Controls Dock -->
       <div class="call-controls-bar">
         <button type="button" id="toggleMicBtn" class="call-ctrl-btn active" title="Toggle Mic">
-          <svg id="micIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
             <line x1="12" y1="19" x2="12" y2="23"></line>
@@ -274,13 +273,6 @@
           </svg>
         </button>
 
-        <button type="button" id="flipCamBtn" class="call-ctrl-btn" title="Flip Camera" style="display:none;">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-4v4h4"></path>
-            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"></path>
-          </svg>
-        </button>
-
         <button type="button" id="endCallBtn" class="call-ctrl-btn hangup" title="End Call">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
             <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.28 8.78 7.4 7 12 7s8.72 1.78 11.71 4.67c.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
@@ -289,7 +281,7 @@
       </div>
     </div>
 
-    <!-- INCOMING CALL MODAL / SHEET -->
+    <!-- INCOMING CALL MODAL -->
     <div class="bottom-sheet" id="incomingCallSheet" style="display:none; z-index:300;">
       <div class="sheet-backdrop"></div>
       <div class="sheet-content text-center">
@@ -298,7 +290,7 @@
           <span class="incoming-avatar-circle" id="incomingAvatar">P</span>
         </div>
         <h2 class="incoming-caller-name" id="incomingCallerName">Caller Name</h2>
-        <p class="incoming-call-type" id="incomingCallType">Incoming Wi-Fi Call...</p>
+        <p class="incoming-call-type" id="incomingCallType">Incoming Call...</p>
         
         <div class="incoming-actions">
           <button type="button" id="declineCallBtn" class="call-action-circle decline" title="Decline">
@@ -331,7 +323,7 @@
               </svg>
             </div>
             <strong>Voice Call</strong>
-            <span>Zero-lag HD audio</span>
+            <span>Direct HD audio</span>
           </button>
 
           <button type="button" class="call-type-card" data-calltype="video">
@@ -360,37 +352,43 @@
       </div>
     </div>
 
-    <!-- ONBOARDING: WELCOME & SET NAME MODAL -->
-    <div class="welcome-modal-overlay" id="welcomeModal" style="display:none;">
-      <div class="welcome-card">
-        <div class="welcome-icon">⚡</div>
-        <h2 class="welcome-title">Welcome to AetherLAN</h2>
-        <p class="welcome-sub">Choose your display name and avatar color to join this Wi-Fi mesh:</p>
+    <!-- PERMISSIONS SHEET MODAL -->
+    <div class="bottom-sheet" id="permSheet" style="display:none;">
+      <div class="sheet-backdrop" id="closePermBackdrop"></div>
+      <div class="sheet-content">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">Device Permissions</h3>
+        <p class="sheet-sub">AetherLAN runs 100% locally. Permissions stay on your device:</p>
         
-        <form id="welcomeForm" class="welcome-form">
-          <div class="welcome-avatar-preview">
-            <span class="welcome-avatar-circle" id="welcomeAvatarCircle">?</span>
+        <div class="perm-list">
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>🎙️ Microphone</strong>
+              <span>Record voice memos & voice calls</span>
+            </div>
+            <button type="button" id="reqMicBtn" class="pill-btn secondary small">Enable</button>
           </div>
 
-          <label class="input-label">Your Name</label>
-          <input type="text" id="welcomeNameInput" class="text-field" maxlength="20" placeholder="e.g. Zerxen" required autofocus>
-          
-          <label class="input-label">Avatar Color</label>
-          <div class="color-row" id="welcomeColorRow">
-            <button type="button" class="color-ball active" style="background:#0a84ff" data-color="#0a84ff"></button>
-            <button type="button" class="color-ball" style="background:#30d158" data-color="#30d158"></button>
-            <button type="button" class="color-ball" style="background:#ff375f" data-color="#ff375f"></button>
-            <button type="button" class="color-ball" style="background:#ffd60a" data-color="#ffd60a"></button>
-            <button type="button" class="color-ball" style="background:#bf5af2" data-color="#bf5af2"></button>
-            <button type="button" class="color-ball" style="background:#64d2ff" data-color="#64d2ff"></button>
-            <button type="button" class="color-ball" style="background:#ff9f0a" data-color="#ff9f0a"></button>
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>📸 Camera</strong>
+              <span>Snap photos & video calls</span>
+            </div>
+            <button type="button" id="reqCamBtn" class="pill-btn secondary small">Enable</button>
           </div>
 
-          <div class="welcome-actions">
-            <button type="button" id="welcomeRandomBtn" class="pill-btn secondary">🎲 Random</button>
-            <button type="submit" class="pill-btn primary" style="flex:1;">Join Network</button>
+          <div class="perm-item">
+            <div class="perm-info">
+              <strong>🔔 Notifications</strong>
+              <span>Get alerted when files or messages arrive</span>
+            </div>
+            <button type="button" id="reqNotifBtn" class="pill-btn secondary small">Enable</button>
           </div>
-        </form>
+        </div>
+
+        <div class="sheet-actions" style="margin-top: 16px;">
+          <button type="button" id="grantAllSheetBtn" class="pill-btn primary" style="width:100%;">Grant All Permissions</button>
+        </div>
       </div>
     </div>
 

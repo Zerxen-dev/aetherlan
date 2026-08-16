@@ -1,4 +1,4 @@
-// AetherLAN — Zero-Lag Mobile Matrix Client & WebRTC Engine
+// AetherLAN — Zero-Lag Mobile Matrix Client + WebRTC Engine & Permissions
 (function() {
   'use strict';
 
@@ -41,6 +41,7 @@
     recordStart: 0,
     typingTimer: null,
     isTyping: false,
+    perms: { mic: false, cam: false, notif: false },
     // WebRTC Call State
     call: {
       active: false,
@@ -66,11 +67,16 @@
     userAvatar: document.getElementById('userAvatar'),
     networkInfoBtn: document.getElementById('networkInfoBtn'),
     onlineCountText: document.getElementById('onlineCountText'),
+    startCallBtn: document.getElementById('startCallBtn'),
+    permBtn: document.getElementById('permBtn'),
     searchToggleBtn: document.getElementById('searchToggleBtn'),
     searchDrawer: document.getElementById('searchDrawer'),
     searchInput: document.getElementById('searchInput'),
     closeSearchBtn: document.getElementById('closeSearchBtn'),
     qrBtn: document.getElementById('qrBtn'),
+    permBanner: document.getElementById('permBanner'),
+    grantAllPermsBtn: document.getElementById('grantAllPermsBtn'),
+    dismissPermBannerBtn: document.getElementById('dismissPermBannerBtn'),
     tabBtns: document.querySelectorAll('.tab-btn'),
     views: document.querySelectorAll('.view'),
     chatBadge: document.getElementById('chatBadge'),
@@ -106,8 +112,14 @@
     clearClipBtn: document.getElementById('clearClipBtn'),
     syncClipBtn: document.getElementById('syncClipBtn'),
     clipCharCount: document.getElementById('clipCharCount'),
+    // Permissions Sheet
+    permSheet: document.getElementById('permSheet'),
+    closePermBackdrop: document.getElementById('closePermBackdrop'),
+    reqMicBtn: document.getElementById('reqMicBtn'),
+    reqCamBtn: document.getElementById('reqCamBtn'),
+    reqNotifBtn: document.getElementById('reqNotifBtn'),
+    grantAllSheetBtn: document.getElementById('grantAllSheetBtn'),
     // Calls & Media
-    startCallBtn: document.getElementById('startCallBtn'),
     startCallSheet: document.getElementById('startCallSheet'),
     closeStartCallBackdrop: document.getElementById('closeStartCallBackdrop'),
     callOverlay: document.getElementById('callOverlay'),
@@ -121,7 +133,6 @@
     toggleMicBtn: document.getElementById('toggleMicBtn'),
     toggleCamBtn: document.getElementById('toggleCamBtn'),
     toggleScreenBtn: document.getElementById('toggleScreenBtn'),
-    flipCamBtn: document.getElementById('flipCamBtn'),
     endCallBtn: document.getElementById('endCallBtn'),
     // Incoming Call Modal
     incomingCallSheet: document.getElementById('incomingCallSheet'),
@@ -206,6 +217,120 @@
       if (el.chatTimeline) {
         el.chatTimeline.scrollTop = el.chatTimeline.scrollHeight;
       }
+    });
+  }
+
+  // --- Permissions Logic ---
+  function updatePermButtons() {
+    if (window.Notification) {
+      state.perms.notif = Notification.permission === 'granted';
+      updateButtonState(el.reqNotifBtn, state.perms.notif);
+    }
+    if (localStorage.getItem('aether_mic_granted') === 'true') {
+      state.perms.mic = true;
+      updateButtonState(el.reqMicBtn, true);
+    }
+    if (localStorage.getItem('aether_cam_granted') === 'true') {
+      state.perms.cam = true;
+      updateButtonState(el.reqCamBtn, true);
+    }
+  }
+
+  function updateButtonState(btn, granted) {
+    if (!btn) return;
+    if (granted) {
+      btn.textContent = '✓ Granted';
+      btn.classList.add('granted');
+    } else {
+      btn.textContent = 'Enable';
+      btn.classList.remove('granted');
+    }
+  }
+
+  async function requestMicrophone() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Mic requires localhost or HTTPS');
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      state.perms.mic = true;
+      localStorage.setItem('aether_mic_granted', 'true');
+      updateButtonState(el.reqMicBtn, true);
+      showToast('🎙️ Microphone enabled');
+      haptic();
+      return true;
+    } catch(e) {
+      showToast('Microphone access denied');
+      return false;
+    }
+  }
+
+  async function requestCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Camera requires localhost or HTTPS');
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(t => t.stop());
+      state.perms.cam = true;
+      localStorage.setItem('aether_cam_granted', 'true');
+      updateButtonState(el.reqCamBtn, true);
+      showToast('📸 Camera enabled');
+      haptic();
+      return true;
+    } catch(e) {
+      showToast('Camera access denied');
+      return false;
+    }
+  }
+
+  async function requestNotifications() {
+    if (!window.Notification) return false;
+    try {
+      const res = await Notification.requestPermission();
+      state.perms.notif = res === 'granted';
+      updateButtonState(el.reqNotifBtn, state.perms.notif);
+      if (state.perms.notif) showToast('🔔 Notifications enabled');
+      haptic();
+      return state.perms.notif;
+    } catch(e) {
+      return false;
+    }
+  }
+
+  async function grantAllPermissions() {
+    await requestMicrophone();
+    await requestCamera();
+    await requestNotifications();
+    if (el.permBanner) el.permBanner.style.display = 'none';
+    if (el.permSheet) el.permSheet.style.display = 'none';
+    localStorage.setItem('aether_perm_banner_dismissed', 'true');
+    showToast('✓ Permissions configured');
+  }
+
+  if (el.permBtn && el.permSheet) {
+    el.permBtn.addEventListener('click', () => {
+      updatePermButtons();
+      el.permSheet.style.display = 'flex';
+      haptic();
+    });
+  }
+  if (el.closePermBackdrop && el.permSheet) {
+    el.closePermBackdrop.addEventListener('click', () => el.permSheet.style.display = 'none');
+  }
+
+  if (el.reqMicBtn) el.reqMicBtn.addEventListener('click', requestMicrophone);
+  if (el.reqCamBtn) el.reqCamBtn.addEventListener('click', requestCamera);
+  if (el.reqNotifBtn) el.reqNotifBtn.addEventListener('click', requestNotifications);
+  if (el.grantAllSheetBtn) el.grantAllSheetBtn.addEventListener('click', grantAllPermissions);
+  if (el.grantAllPermsBtn) el.grantAllPermsBtn.addEventListener('click', grantAllPermissions);
+  if (el.dismissPermBannerBtn && el.permBanner) {
+    el.dismissPermBannerBtn.addEventListener('click', () => {
+      el.permBanner.style.display = 'none';
+      localStorage.setItem('aether_perm_banner_dismissed', 'true');
     });
   }
 
@@ -876,10 +1001,8 @@
         el.localVideo.srcObject = stream;
         el.localVideo.style.display = 'block';
       }
-      if (el.flipCamBtn) el.flipCamBtn.style.display = mode === 'video' ? 'flex' : 'none';
     } else {
       if (el.localVideo) el.localVideo.style.display = 'none';
-      if (el.flipCamBtn) el.flipCamBtn.style.display = 'none';
     }
 
     return stream;
@@ -1297,8 +1420,9 @@
     return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
   }
 
-  // --- Auto-start with Persistent Profile ---
+  // --- Auto-start ---
   updateProfileDisplay();
+  updatePermButtons();
   connect();
 
 })();
